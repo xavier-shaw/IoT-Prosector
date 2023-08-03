@@ -1,0 +1,71 @@
+.home {
+    max-width: 1440px;
+    min-width: 1200px;
+    margin: 0 auto;
+}
+
+.storyexamplecontainer {
+    background-color: whitesmoke;
+    width: 100%;
+    border: 0.5px solid #DCDCDC;
+    position: relative;
+    margin-top: 30px;
+    border-radius: 15px;
+}
+
+.storyexamples {
+    font-style: normal;
+    /* font-weight: bold; */
+    text-align: left;
+    font-size: 28px;
+    line-height: 33px;
+    /* identical to box height */
+    color: grey;
+}
+
+.leancontainer {
+    margin-left: 100px;
+    margin-top: 30px;
+    margin-right: 100px;
+}
+
+.homeBoardList {
+    margin-top: 1rem;
+    padding: 12px 12px 12px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 16px;
+    @media (max-width: 768px) {
+        width: 320px;
+        font-size: 14px;
+    }
+}
+
+.homeBoardStory {
+    width: 200px;
+    height: 100px;
+    /* display: flex; */
+    /* flex-direction: row; */
+    /* align-items: center; */
+    justify-content: space-between;
+    font-weight: 500;
+    /* border-bottom: 1px solid rgba(0,0,0,0.1); */
+    padding: 12px;
+    margin: 12px;
+    align-self: flex-end;
+    background: #726f6f;
+    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+}
+
+.homeStoryLink :hover :focus :active {
+    /* &:hover,
+    &:focus,
+    &:active {
+        opacity: 0.85;
+    } */
+    opacity: 0.85;
+}
