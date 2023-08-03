@@ -1,4 +1,7 @@
 import { React, useState, useEffect } from "react";
+import axios from "axios";
+import { v4 as uuidv4} from "uuid";
+import { Link } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
 import { Button } from "@mui/material";
 import "./home.css"
@@ -9,7 +12,7 @@ export default function Home(props) {
     useEffect(() => {
         // Side effect code goes here
         // It will run after the component renders
-        // getBoards();
+        getBoards();
         // Optional cleanup function
         return () => {
             // Cleanup code goes here
@@ -19,15 +22,28 @@ export default function Home(props) {
 
     function getBoards() {
         axios
-            .get(window.BACKEND_ADDRESS + "/boards/example")
+            .get(window.BACKEND_ADDRESS + "/boards")
             .then((resp) => {
-                console.log("Get example boards from db", resp);
+                console.log("Get boards from db", resp);
                 setBoards(resp.data)
             })
     };
 
     function createBoard() {
-        window.location.href = 'board/';
+        let newId = uuidv4();
+        let curboard = {
+            _id: newId
+        };
+
+        axios
+            .post(window.BACKEND_ADDRESS + "/board", curboard)
+            .then(response => {
+                console.log("successed with response message:", response);
+                window.location.href = 'board/' + newId;
+            })
+            .catch(error => {
+                console.log("failed with error message:", error);
+            });
     }
 
     return (

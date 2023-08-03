@@ -24,6 +24,10 @@ app.use(bodyParser.json({limit: '10mb', extended: true}));
 
 var boardRoutes = require('./api/routes/boardRoutes'); //importing route
 boardRoutes(app); //register the route
+var stateRoutes = require("./api/routes/stateRoutes");
+stateRoutes(app);
+var dataRoutes = require("./api/routes/dataRoutes");
+dataRoutes(app);
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

@@ -1,4 +1,4 @@
 export default {
     home: "/",
-    board: "/board"
+    board: "/board/:boardId"
 };

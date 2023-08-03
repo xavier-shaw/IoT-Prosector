@@ -10,28 +10,8 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Stack } from '@mui/material';
 
 export default function MenuBar(props) {
-    let { title, onMenuClick, onTitleChange, runProgram } = props;
-    const [anchorEl, setAnchorEl] = React.useState(null);
-    const open = Boolean(anchorEl);
-
-    const handleClick = (event) => {
-        setAnchorEl(event.currentTarget);
-    };
-
-    const handleClose = (event) => {
-        setAnchorEl(null);
-
-        switch (event) {
-            case "save":
-                onMenuClick("save");
-                break;
-            case "duplicate":
-                onMenuClick("duplicate");
-            default:
-                break;
-        }
-    };
-
+    let { title, onSave, onTitleChange, runProgram } = props;
+    
     return (
         <div>
             <AppBar sx={{ height: "60px", display: "flex" }} color="transparent" position="static">
@@ -44,7 +24,7 @@ export default function MenuBar(props) {
                             variant="contained"
                             color="primary"
                             endIcon={<PlayArrowIcon />}
-                            onClick={runProgram}
+                            onClick={onSave}
                         >
                             Save
                         </Button>
