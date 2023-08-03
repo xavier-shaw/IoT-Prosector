@@ -58,9 +58,10 @@ export default function Board(props) {
                     if (!states.hasOwnProperty(iotState.idx)) {
                         let state = {
                             id: iotState.idx,
+                            type: "stateNode",
                             time: iotState.time,
                             // TODO: refine the position inital layout
-                            position: { x: 200 * (parseInt(iotState.idx)), y: 100 },
+                            position: { x: 50 + 200 * (parseInt(iotState.idx)), y: 100 },
                             data: { label: "State " + iotState.idx }
                         };
                         states[iotState.idx] = state;
