@@ -69,9 +69,12 @@ export default function Board(props) {
                         if (iotState.idx !== iotState.prev_idx) {
                             let transition = {
                                 id: "e" + iotState.prev_idx + "-" + iotState.idx,
+                                type: "transitionEdge",
                                 source: iotState.idx,
                                 target: iotState.prev_idx,
-                                label: "action"
+                                data: {
+                                    label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
+                                }
                             };
                             transitions[transition.id] = transition;
                         }

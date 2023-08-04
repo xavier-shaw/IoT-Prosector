@@ -1,18 +1,20 @@
-import { TextField } from '@mui/material';
-import React, { useState } from 'react';
+import { Chip, TextField } from '@mui/material';
+import React, { useEffect, useState } from 'react';
 import { getBezierPath, EdgeLabelRenderer, BaseEdge } from 'reactflow';
 
-export default function TransitionEdge({
-    id,
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    data,
-}) {
+export default function TransitionEdge(props) {
+    let { sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition, id, data } = props;
     let [transitionName, setTransitionName] = useState(data.label);
+    let [editable, setEditable] = useState(false);
+
+    useEffect(() => {
+        console.log("edge props", props)
+    }, []);
 
     const [edgePath, labelX, labelY] = getBezierPath({
         sourceX,
@@ -23,11 +25,18 @@ export default function TransitionEdge({
         targetPosition,
     });
 
-    const onChange = (event) => {
-        event.stopPropagation();
+    const handleTextChange = (event) => {
         setTransitionName(event.target.value);
         data.label = event.target.value;
     };
+
+    const handleChipClick = () => {
+        setEditable(true);
+    };
+
+    const handleTextBlur = () => {
+        setEditable(false);
+    }
 
     return (
         <>
@@ -37,15 +46,15 @@ export default function TransitionEdge({
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        background: '#ffcc00',
-                        padding: 10,
-                        borderRadius: 5,
-                        fontSize: 12,
-                        fontWeight: 700,
+                        fontSize: 10,
+                        pointerEvents: 'all'
                     }}
                     className="nodrag nopan"
                 >
-                    <TextField label="Transition" value={transitionName} onChange={(event) => onChange(event)} />
+                    {editable ?
+                        <TextField value={transitionName} onChange={handleTextChange} onBlur={handleTextBlur} autoFocus/>
+                        :
+                        <Chip label={transitionName} onClick={handleChipClick} />}
                 </div>
             </EdgeLabelRenderer>
         </>

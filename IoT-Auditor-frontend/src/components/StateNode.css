@@ -1,14 +1,7 @@
 .state-node {
-    height: 80px;
-    border: 1px solid #eee;
-    padding: 10px;
-    border-radius: 10px;
-    background: white;
-  }
-  
-  .state-node label {
-    display: block;
-    color: #777;
-    font-size: 12px;
-  }
-  
+  height: 80px;
+  border: 1px solid #eee;
+  padding: 10px;
+  border-radius: 10px;
+  background: white;
+}

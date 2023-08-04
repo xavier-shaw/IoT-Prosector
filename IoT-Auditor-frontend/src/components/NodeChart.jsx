@@ -20,7 +20,6 @@ export default function NodeChart(props) {
                 for (const [idx, state] of Object.entries(board.data.statesDict)) {
                     states.push(state);
                 };
-                console.log("here set state", states);
                 setStates(states);
                 ref.current.states = states;
             };
@@ -31,17 +30,19 @@ export default function NodeChart(props) {
                     transitions.push(transition);
                 };
                 setTransitions(transitions);
+                ref.current.transitions = transitions;
             }
         }
     }, [board]);
 
     useEffect(() => {
         ref.current.states = states;
-        console.log(states)
+        console.log("states", states);
     }, [states]);
 
     useEffect(() => {
         ref.current.transitions = transitions;
+        console.log("transitions", transitions);
     }, [transitions]);
 
     return (
@@ -53,6 +54,7 @@ export default function NodeChart(props) {
                 edges={transitions}
                 onNodesChange={onStateChange}
                 onEdgesChange={onTransitionChange}
+                fitView
             >
                 <Background />
                 <Controls />

@@ -9,6 +9,7 @@ import time
 import pickle
 import multiprocessing
 import power_data
+import emanation_data
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
 import os
@@ -63,6 +64,12 @@ async def start_sensing():
     return {"message": "Sensing IoT device!"}
 
 
+@app.get("/remove")
+async def remove():
+    app.database["iotstates"].delete_many({})
+    app.database["iotstates"].delete_many({})
+
+
 @app.get("/removeall")
 async def remove_all():
     app.database["iotstates"].delete_many({})
@@ -87,7 +94,9 @@ def get_closest_centroid(point, centroids):
 
 def create_state(state):
     new_state = app.database["iotstates"].insert_one(state)
+    print("==================== NEW STATE =====================")
     print(state)
+    print("==================== NEW STATE =====================")
 
 
 def create_data(data):
@@ -106,52 +115,118 @@ def sensing(device):
               'interact_muted', 'interact_unmuted', 'change_volume_unmuted']
 
     states_data = []
-    data_points_info = []
+    data_points_info = {}
     data_point_idx = 0
     state_clusters = []  # identified clusters
     centroids = []  # center point of clusters
-    distance_threshold = 10000000  # TODO: threshold
+    # TODO: threshold for outlier
+    distance_threshold = 10000000
     previous_data_cluster_idx = 0  # the state of previous data
-    scaler_x = StandardScaler()
+    # TODO: threshold for new cluster (times of continous outlier)
+    count_threshold = 10
+    outlier_buffer = []  # a buffer array for potential new cluster
+    outlier_buffer_idx = []  # an array records the potential outliers' idx
+    scaler_x = StandardScaler()  # the scaler for normalization
+    new_state = True  # indicator for creating a new state
 
-    new_state = True  # indicator just for testing
+    boring_time = 0  # indicator for the time since last new state was created
+    boring_threshold = 20  # the threshold for stable states
 
 # ======================= Read data from data stream ========================================
-    while(data_point_idx <= 30): #TODO: timing 
+    while (boring_time <= boring_threshold):
+        boring_time += 1
         q = multiprocessing.Queue()
         p2 = multiprocessing.Process(target=power_data.power_data, args=(q,))
+        p3 = multiprocessing.Process(
+            target=emanation_data.emanation_data, args=(q,))
+
         p2.start()
+        p3.start()
+
         p2.join()
+        p3.join()
+
         power = q.get()
+        emanation = q.get()
+
         if len(power) > 0:
-            features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
+            features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
+                x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
             fea_power = [feature(power) for feature in features]
-            fea = np.array(fea_power)
+            fea_emanation = [feature(emanation) for feature in features]
+            fea = np.array(fea_power + fea_emanation)
+            print("fea: ", fea)
             fea = fea.reshape(1, fea.shape[0])
+            print("fea's shape after reshape: ", fea.shape)
             # sample_transform = scaler_x.transform(fea)
+            # print("fea scale", sample_transform)
 
             states_data.append(fea)
 
-            # testing new box
+            # TESTING: creating a new state every 5 data points
             if data_point_idx % 5 == 0:
                 new_state = True
 
-            if len(centroids) == 0 or new_state:  # if this is the first point
-                    state_clusters.append([fea])
-                    centroids.append(fea)
-                    cluster_idx = len(state_clusters) - 1
+            # Workflow:
+            # 1. calculate distance between data point and clusters's center points
+            # 2. if distance larger than threshold, it is an "outlier":
+            #       (a) if cumulated outlier count larger than count threshold => create new cluster for cumulated outliers
+            #       (b) if cumulated outlier count less than count threshold => record the outlier in a buffer
+            # 3. if distance smaller than threshold:
+            #       (a) if the nearest cluster is the previous cluster => add data point to the nearest cluster
+            #       (b) if the nearest cluster is another cluster => a new threshold to judge if add to it or not? => just add to the nearest cluster
+            #    => recalculate the center point of the modified cluster
+            #    => clear the outlier buffer to confirm they're outliers
+
+            if len(centroids) == 0:  # if this is the first point
+                state_clusters.append([fea])
+                centroids.append(fea)
+                cluster_idx = len(state_clusters) - 1
+                new_state = True
             else:
-                closest_centroid_index, closest_distance = get_closest_centroid(fea, centroids)
-                if closest_distance < distance_threshold:
-                    closest_centroid_index = previous_data_cluster_idx # if distance less than threshold, then the state won't change?
-                    state_clusters[closest_centroid_index].append(fea)
-                    centroids[closest_centroid_index] = calculate_centroid(state_clusters[closest_centroid_index])
-                    cluster_idx = closest_centroid_index
+                # calculate distance
+                closest_centroid_index, closest_distance = get_closest_centroid(
+                    fea, centroids)
+                # less than threshold
+                if closest_distance <= distance_threshold:
+                    # add to nearest cluster
+                    if closest_centroid_index == previous_data_cluster_idx:
+                        belonged_cluster_idx = closest_centroid_index
+                    else:
+                        belonged_cluster_idx = closest_centroid_index
+                    state_clusters[belonged_cluster_idx].append(fea)
+                    # recalculate the center point
+                    centroids[belonged_cluster_idx] = calculate_centroid(
+                        state_clusters[belonged_cluster_idx])
+                    # empty the outlier buffer and its idx
+                    outlier_buffer = []
+                    outlier_buffer_idx = []
+                    cluster_idx = belonged_cluster_idx
+                # larger than threshold
                 else:
-                    state_clusters.append([fea])
-                    centroids.append(fea)
-                    cluster_idx = len(state_clusters) - 1
-            
+                    # add to outlier buffer
+                    outlier_buffer.append(fea)
+                    # number of outliers more than the threshold => create new cluster
+                    if len(outlier_buffer) >= count_threshold:
+                        # add the outlier buffer as a new cluster
+                        state_clusters.append(outlier_buffer)
+                        # calculate the center point of the new cluster
+                        centroids.append(calculate_centroid(outlier_buffer))
+                        new_state = True
+                        cluster_idx = len(state_clusters) - 1
+                        # update the outliers' state as this new cluster
+                        for outlier_idx in outlier_buffer_idx:
+                            data_points_info[outlier_idx]["state"] = str(
+                                cluster_idx)
+                        # empty the outlier buffer and its idx
+                        outlier_buffer = []
+                        outlier_buffer_idx = []
+                    # number of outliers less than the threshold
+                    else:
+                        cluster_idx = -1  # indicate this data point is an outlier
+                        # add the idx to the buffer so that its state can be updated later
+                        outlier_buffer_idx.append(data_point_idx)
+
             data_point_info = {
                 "idx": str(data_point_idx),
                 "state": str(cluster_idx),
@@ -159,11 +234,12 @@ def sensing(device):
                 "time": time.time_ns() - start_time,
                 "device": device
             }
+            data_points_info[data_point_idx] = data_point_info
             data_point_idx += 1
-            data_points_info.append(data_point_info)
             print(data_point_info)
 
             if new_state:
+                boring_time = 0  # reset the boring time
                 new_state_info = {
                     "time": time.time_ns() - start_time,
                     "device": device,
