@@ -8,13 +8,11 @@ export default function TransitionEdge(props) {
         sourcePosition,
         targetX,
         targetY,
-        targetPosition, id, data } = props;
+        targetPosition, 
+        markerEnd,
+        id, data } = props;
     let [transitionName, setTransitionName] = useState(data.label);
     let [editable, setEditable] = useState(false);
-
-    useEffect(() => {
-        console.log("edge props", props)
-    }, []);
 
     const [edgePath, labelX, labelY] = getBezierPath({
         sourceX,
@@ -22,7 +20,7 @@ export default function TransitionEdge(props) {
         sourcePosition,
         targetX,
         targetY,
-        targetPosition,
+        targetPosition
     });
 
     const handleTextChange = (event) => {
@@ -40,9 +38,10 @@ export default function TransitionEdge(props) {
 
     return (
         <>
-            <BaseEdge id={id} path={edgePath} />
+            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd}/>
             <EdgeLabelRenderer>
                 <div
+                    id={id + "_label"}
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,

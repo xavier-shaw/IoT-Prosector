@@ -1,59 +1,46 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import ReactFlow, { Background, Controls, useEdgesState, useNodesState, applyNodeChanges, applyEdgeChanges } from 'reactflow';
 import 'reactflow/dist/style.css';
 import StateNode from "./StateNode";
 import TransitionEdge from "./TransitionEdge";
+import { Button } from "@mui/material";
 
-export default function NodeChart(props) {
-    let { board, setBoard } = props;
-    let ref = useRef({});
-    const [states, setStates, onStateChange] = useNodesState([]);
-    const [transitions, setTransitions, onTransitionChange] = useEdgesState([]);
+const NodeChart = forwardRef((props, ref) => {
+    let { states, setStates, transitions, setTransitions } = props;
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const nodeTypes = useMemo(() => ({ stateNode: StateNode }), []);
     const edgeTypes = useMemo(() => ({ transitionEdge: TransitionEdge }), []);
 
     useEffect(() => {
-        if (board.hasOwnProperty("data")) {
-            if (board.data.hasOwnProperty("statesDict")) {
-                let states = [];
-                for (const [idx, state] of Object.entries(board.data.statesDict)) {
-                    states.push(state);
-                };
-                setStates(states);
-                ref.current.states = states;
-            };
-
-            if (board.data.hasOwnProperty("transitionsDict")) {
-                let transitions = [];
-                for (const [idx, transition] of Object.entries(board.data.transitionsDict)) {
-                    transitions.push(transition);
-                };
-                setTransitions(transitions);
-                ref.current.transitions = transitions;
-            }
-        }
-    }, [board]);
-
-    useEffect(() => {
-        ref.current.states = states;
         console.log("states", states);
+        setNodes(states);
     }, [states]);
 
     useEffect(() => {
-        ref.current.transitions = transitions;
         console.log("transitions", transitions);
+        setEdges(transitions);
     }, [transitions]);
+
+    useImperativeHandle(ref, () => ({
+        updateAnnotation
+    }))
+
+    const updateAnnotation = () => {
+        setStates(nodes);
+        setTransitions(transitions);
+    };
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
             <ReactFlow
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                nodes={states}
-                edges={transitions}
-                onNodesChange={onStateChange}
-                onEdgesChange={onTransitionChange}
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
                 fitView
             >
                 <Background />
@@ -61,4 +48,6 @@ export default function NodeChart(props) {
             </ReactFlow>
         </div>
     )
-}
+});
+
+export default NodeChart;

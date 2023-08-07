@@ -10,7 +10,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Stack } from '@mui/material';
 
 export default function MenuBar(props) {
-    let { title, onSave, onTitleChange, runProgram } = props;
+    let { title, onSave, onTitleChange, isSensing, handleClickExplore, updateAnnotation } = props;
     
     return (
         <div>
@@ -51,28 +51,27 @@ export default function MenuBar(props) {
                         <Stack spacing={2} direction={"row"}>
                             <Button
                                 variant="contained"
-                                color="primary"
+                                color={isSensing === -1? "primary" : "secondary"}
                                 endIcon={<PlayArrowIcon />}
-                                onClick={runProgram}
+                                onClick={handleClickExplore}
                             >
-                                Explore
+                                {isSensing === -1? "Explore": "End Explore"}
                             </Button>
                             <Button
                                 variant="contained"
                                 color="primary"
                                 endIcon={<PlayArrowIcon />}
-                                onClick={runProgram}
+                                onClick={updateAnnotation}
                             >
                                 Annotate
                             </Button>
-                            <Button
+                            {/* <Button
                                 variant="contained"
                                 color="primary"
                                 endIcon={<PlayArrowIcon />}
-                                onClick={runProgram}
                             >
                                 Verify
-                            </Button>
+                            </Button> */}
                         </Stack>
                     </div>
                 </Toolbar>
