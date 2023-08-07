@@ -154,7 +154,7 @@ export default function Board(props) {
                         };
                         states[iotState.idx] = state;
 
-                        if (iotState.prev_idx !== "-1") {
+                        if (iotState.prev_idx !== "-99") {
                             let transition = {
                                 id: "edge_" + iotState.prev_idx + "-" + iotState.idx,
                                 type: "transitionEdge",
@@ -202,7 +202,7 @@ export default function Board(props) {
     };
 
     const annotationSensing = () => {
-
+        // TODO: 
     }
 
     return (

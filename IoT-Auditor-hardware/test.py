@@ -39,4 +39,6 @@ def compute_pairwise_distance():
 min_distance = compute_pairwise_distance()
 print(min_distance)
 
+
+
  

@@ -131,24 +131,16 @@ def create_data(data):
 def sensing(device):
     print("\n")
     start_time = time.time_ns()
-    absolute_path = os.path.dirname(__file__)
-    relative_path = "data"
-    full_path = os.path.join(absolute_path, relative_path)
-
-    states = ['power_on_unmuted', 'power_on_muted', 'change_volume_muted',
-              'interact_muted', 'interact_unmuted', 'change_volume_unmuted']
 
     points_data = []
     data_points_info = {}
     data_point_idx = 0
     state_clusters = []  # identified clusters
     centroids = []  # center point of clusters
-    # TODO: threshold for outlier
-    # unscaled: 0.4981052741155125  scaled: 0.6203916378805225
-    distance_threshold = 0.4981052741155125
+    distance_threshold = 2
     previous_data_cluster_idx = -1  # the state of previous data
     # TODO: threshold for new cluster (times of continous outlier)
-    count_threshold = 1000
+    count_threshold = 2
     outlier_buffer = []  # a buffer array for potential new cluster
     outlier_buffer_idx = []  # an array records the potential outliers' idx
     scaler_x = StandardScaler()  # the scaler for normalization
@@ -157,8 +149,17 @@ def sensing(device):
     boring_time = 0  # indicator for the time since last new state was created
     boring_threshold = 100  # the threshold for stable states
 
+    # Create Default POWER_OFF state as the first state
+    new_state_info = {
+                    "time": 0,
+                    "device": device,
+                    "idx": "-1",
+                    "prev_idx": "-99"
+                }
+    create_state(new_state_info)
+
 # ======================= Read data from data stream ========================================
-    while (len(state_clusters) < 7 and boring_time <= boring_threshold):
+    while (len(state_clusters) < 10 and boring_time <= boring_threshold):
         boring_time += 1
         q = multiprocessing.Queue()
         p2 = multiprocessing.Process(target=power_data.power_data, args=(q,))
@@ -174,19 +175,18 @@ def sensing(device):
         power = q.get()
         emanation = q.get()
 
+        first = True
         if len(power) > 0:
+            if first:
+                first = False
+                continue
             features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
                 x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
             fea_power = [feature(power) for feature in features]
             fea_emanation = [feature(emanation) for feature in features]
             fea = np.array(fea_power + fea_emanation)
             fea = fea.reshape(1, fea.shape[0])
-            print("features: ", fea)
             points_data.append(fea)
-
-            # TESTING: creating a new state every 5 data points
-            # if data_point_idx % 5 == 0:
-            #     new_state = True
 
             # Clustering Workflow:
             # 1. calculate distance between data point and clusters's center points
@@ -213,7 +213,6 @@ def sensing(device):
                 # less than threshold
                 if closest_distance <= distance_threshold:
                     print("smaller than threshold")
-                    print("now center")
                     # the nearest cluster is current state
                     if closest_centroid_index == previous_data_cluster_idx:
                         belonged_cluster_idx = closest_centroid_index
@@ -253,7 +252,7 @@ def sensing(device):
                         outlier_buffer_idx = []
                     # number of outliers less than the threshold
                     else:
-                        cluster_idx = -1  # indicate this data point is an outlier
+                        cluster_idx = -99  # indicate this data point is an outlier
                         # add the idx to the buffer so that its state can be updated later
                         outlier_buffer_idx.append(data_point_idx)
 
