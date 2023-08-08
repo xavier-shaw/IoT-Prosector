@@ -23,8 +23,7 @@
     height: 5%;
     display: flex;
     justify-content: space-evenly;
-    align-items: baseline;
-    align-content: center;
+    align-items: center;
     background-color:ghostwhite;
 }
 

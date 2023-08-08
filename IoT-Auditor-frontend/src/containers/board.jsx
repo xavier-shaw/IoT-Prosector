@@ -11,9 +11,6 @@ import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
 import { MarkerType } from "reactflow";
 import { Button, Step, StepConnector, stepConnectorClasses, StepLabel, Stepper } from "@mui/material";
-import { styled } from "@mui/material/styles";
-import { color, index } from "d3";
-import zIndex from "@mui/material/styles/zIndex";
 
 export default function Board(props) {
     let params = useParams();
@@ -26,6 +23,7 @@ export default function Board(props) {
         "Click button to begin your verification."
     ]
     const [states, setStates] = useState([]);
+    const [totalStates, setTotalStates] = useState([]);
     const [transitions, setTransitions] = useState([]);
     const [isSensing, setIsSensing] = useState(-1);
     const [currentStateIdx, setCurrentStateIdx] = useState("-1");
@@ -65,19 +63,32 @@ export default function Board(props) {
         }
     }, [board]);
 
+    useEffect(() => {
+        let totalStatesCpy = totalStates;
+        for (const s of states) {
+            for (const state of totalStatesCpy) {
+                if (s.id === state.id) {
+                    state.data.label = s.data.label;
+                }   
+            }
+        };
+        setTotalStates(totalStatesCpy);
+        console.log("total states", totalStates)
+    }, [states])
+
     const handleClickNext = () => {
         if (step === 0) {
             axios.
                 get(window.BACKEND_ADDRESS + "/datas/" + board.title)
                 .then((resp) => {
-
-                })
-        }
-        setStep((prevStep) => (prevStep - 1));
+                    console.log("iot data: ", resp.data);
+                });
+        };
+        setStep((prevStep) => (prevStep + 1));
     };
 
     const handleClickBack = () => {
-        setStep((prevStep) => (prevStep + 1));
+        setStep((prevStep) => (prevStep - 1));
     }
 
     const handleTitleFocusOut = (titleText) => {
@@ -156,7 +167,8 @@ export default function Board(props) {
                 let boardData = board.data;
                 let states = board.data.hasOwnProperty("statesDict") ? board.data.statesDict : {};
                 let transitions = board.data.hasOwnProperty("transitionsDict") ? board.data.transitionsDict : {};
-
+                let totalStates = [];
+                
                 // PUT THIS IN THE ANNOTATION STAGE BECAUSE NOW THE NODES HAVEN'T BE CREATED 
                 // // Hint for User => current stage and current transition
                 // if (iotStates.length !== 0) {
@@ -168,8 +180,15 @@ export default function Board(props) {
                 // }
 
                 for (const iotState of iotStates) {
+                    // record this state's information
+                    totalStates.push({
+                        id: "node_" + iotState.idx,
+                        time: iotState.time,
+                        data: { label: "State " + iotState.idx}
+                    });
+
                     // if it is a new state => create a new node for this state
-                    if (!states.hasOwnProperty(iotState.idx)) {
+                    if (!states.hasOwnProperty("node_" + iotState.idx)) {
                         let state = {
                             id: "node_" + iotState.idx,
                             type: "stateNode",
@@ -223,7 +242,8 @@ export default function Board(props) {
 
                 boardData.statesDict = states;
                 boardData.transitionsDict = transitions;
-                setBoard((prevBoard) => ({ ...prevBoard, data: boardData }))
+                setBoard((prevBoard) => ({ ...prevBoard, data: boardData }));
+                setTotalStates(totalStates);
             })
     };
 
@@ -263,7 +283,7 @@ export default function Board(props) {
                                 <NodeChart ref={nodeChartRef} step={step} states={states} setStates={setStates} transitions={transitions} setTransitions={setTransitions} />
                             </div>
                             <div className="annotation-bottom-side-div">
-                                <TimelineChart />
+                                <TimelineChart totalStates={totalStates} />
                             </div>
                         </div>
                     }

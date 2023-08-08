@@ -8,6 +8,7 @@ import numpy as np
 import time
 import pickle
 import multiprocessing
+import network_data
 import power_data
 import emanation_data
 from scipy import stats
@@ -17,6 +18,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
+import json
 
 config = dotenv_values(".env")
 
@@ -130,7 +132,7 @@ def create_data(data):
 
 def sensing(device):
     print("\n")
-    start_time = time.time_ns()
+    start_time = time.time()
 
     points_data = []
     data_points_info = {}
@@ -151,7 +153,7 @@ def sensing(device):
 
     # Create Default POWER_OFF state as the first state
     new_state_info = {
-                    "time": 0,
+                    "time": time.time() - start_time,
                     "device": device,
                     "idx": "-1",
                     "prev_idx": "-99"
@@ -161,30 +163,51 @@ def sensing(device):
 # ======================= Read data from data stream ========================================
     while (len(state_clusters) < 10 and boring_time <= boring_threshold):
         boring_time += 1
-        q = multiprocessing.Queue()
-        p2 = multiprocessing.Process(target=power_data.power_data, args=(q,))
-        p3 = multiprocessing.Process(
-            target=emanation_data.emanation_data, args=(q,))
+        networks = []
+        powers = []
+        emanations = []
+        
+        for i in range(10):
+            q = multiprocessing.Queue()
+            p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
+            p2 = multiprocessing.Process(target=power_data.power_data, args=(q,))
+            p3 = multiprocessing.Process(
+                target=emanation_data.emanation_data, args=(q,))
 
-        p2.start()
-        p3.start()
+            p1.start()
+            p2.start()
+            p3.start()
+            p1.join()
+            p2.join()
+            p3.join()
+            n = q.get()
+            p = q.get()
+            e = q.get()
 
-        p2.join()
-        p3.join()
+            networks.append(n)
+            powers.append(p)
+            emanations.append(e)
 
-        power = q.get()
-        emanation = q.get()
-
-        first = True
+        print(powers)
+        print(emanations)
+        network = np.mean(networks, axis=0)
+        power = np.mean(powers, axis=0)
+        emanation = np.mean(emanations, axis=0)
+        # continue
+        # first = True
         if len(power) > 0:
-            if first:
-                first = False
-                continue
+            # if first:
+            #     first = False
+            #     continue
+            if len(network) == 0:
+                network = [0,0]
+
             features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
                 x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
+            fea_network = [feature(network) for feature in features]
             fea_power = [feature(power) for feature in features]
             fea_emanation = [feature(emanation) for feature in features]
-            fea = np.array(fea_power + fea_emanation)
+            fea = np.array(fea_network + fea_power + fea_emanation)
             fea = fea.reshape(1, fea.shape[0])
             points_data.append(fea)
 
@@ -228,11 +251,11 @@ def sensing(device):
                     outlier_buffer = []
                     outlier_buffer_idx = []
                     cluster_idx = belonged_cluster_idx
-                    print("Next state is: " + belonged_cluster_idx)
+                    print("Next state is: " + str(belonged_cluster_idx))
                 # larger than threshold
                 else:
                     print("larger than threshold")
-                    print("outlier buffer count: " + len(outlier_buffer))
+                    print("outlier buffer count: " + str(len(outlier_buffer)))
                     # add to outlier buffer
                     outlier_buffer.append(fea)
                     # number of outliers more than the threshold => create new cluster
@@ -260,7 +283,7 @@ def sensing(device):
                 "idx": str(data_point_idx),
                 "state": str(cluster_idx),
                 "data": fea.tolist(),
-                "time": time.time_ns() - start_time,
+                "time": time.time() - start_time,
                 "device": device
             }
             # TODO: For testing
@@ -273,7 +296,7 @@ def sensing(device):
             if new_state:
                 boring_time = 0  # reset the boring time
                 new_state_info = {
-                    "time": time.time_ns() - start_time,
+                    "time": time.time() - start_time,
                     "device": device,
                     "idx": str(cluster_idx),
                     "prev_idx": str(previous_data_cluster_idx)
@@ -450,3 +473,14 @@ def draw():
         plt.scatter(x, y, c=colors[devices.index(
             device)], marker=markers[cluster])
     plt.show()
+
+
+# def manual_update_total_states(device):
+#     states = app.database["iotstates"].find({"device": device})
+#     total_states = []
+#     for state in states:
+#         total_states.append({
+#             "id": "node_" + state.id,
+#             "time": state.time,
+#             "data": state.data
+#         })

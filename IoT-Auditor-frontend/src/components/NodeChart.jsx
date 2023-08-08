@@ -11,10 +11,10 @@ const NodeChart = forwardRef((props, ref) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-    const nodeTypes_explore = useMemo(() => ({ stateNode: ExploreNode }), []);
-    const nodeTypes_annotate = useMemo(() => ({ stateNode: AnnotateNode }), []);
-    const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
-    const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
+    const nodeTypes_explore = useMemo(() => ({ "stateNode": ExploreNode }), []);
+    const nodeTypes_annotate = useMemo(() => ({ "stateNode": AnnotateNode }), []);
+    const edgeTypes_explore = useMemo(() => ({ "transitionEdge": ExploreEdge }), []);
+    const edgeTypes_annotate = useMemo(() => ({ "transitionEdge": AnnotateEdge }), []);
 
     useEffect(() => {
         console.log("states", states);
@@ -31,6 +31,7 @@ const NodeChart = forwardRef((props, ref) => {
     }))
 
     const updateAnnotation = () => {
+        console.log("update annotate", nodes)
         setStates(nodes);
         setTransitions(transitions);
     };
