@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import "./StateNode.css";
 import { TextField } from '@mui/material';
 
-export default function StateNode(props) {
+export default function AnnotateNode(props) {
   let { data } = props;
   const l = data.label;
   let [stateName, setStateName] = useState(l);

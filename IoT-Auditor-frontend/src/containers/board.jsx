@@ -10,10 +10,21 @@ import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
 import { MarkerType } from "reactflow";
+import { Button, Step, StepConnector, stepConnectorClasses, StepLabel, Stepper } from "@mui/material";
+import { styled } from "@mui/material/styles";
+import { color, index } from "d3";
+import zIndex from "@mui/material/styles/zIndex";
 
 export default function Board(props) {
     let params = useParams();
     const [board, setBoard] = useState({});
+    const [step, setStep] = useState(0);
+    const stages = ["Exploration", "Annotation", "Verification"];
+    const hints = [
+        "Click button to start or stop generating state diagram.",
+        "Click a node or edge to annotate, then confirm the annotation.",
+        "Click button to begin your verification."
+    ]
     const [states, setStates] = useState([]);
     const [transitions, setTransitions] = useState([]);
     const [isSensing, setIsSensing] = useState(-1);
@@ -53,6 +64,21 @@ export default function Board(props) {
             };
         }
     }, [board]);
+
+    const handleClickNext = () => {
+        if (step === 0) {
+            axios.
+                get(window.BACKEND_ADDRESS + "/datas/" + board.title)
+                .then((resp) => {
+
+                })
+        }
+        setStep((prevStep) => (prevStep - 1));
+    };
+
+    const handleClickBack = () => {
+        setStep((prevStep) => (prevStep + 1));
+    }
 
     const handleTitleFocusOut = (titleText) => {
         console.log("Update board title:", titleText);
@@ -131,7 +157,7 @@ export default function Board(props) {
                 let states = board.data.hasOwnProperty("statesDict") ? board.data.statesDict : {};
                 let transitions = board.data.hasOwnProperty("transitionsDict") ? board.data.transitionsDict : {};
 
-                // PUT THIS IN THE ANNOTATION STAGE BECAUSE NOEW THE NODES HAVEN'T BE CREATED 
+                // PUT THIS IN THE ANNOTATION STAGE BECAUSE NOW THE NODES HAVEN'T BE CREATED 
                 // // Hint for User => current stage and current transition
                 // if (iotStates.length !== 0) {
                 //     let curStateIdx = "node_" + iotStates[iotStates.length - 1].idx;
@@ -203,20 +229,44 @@ export default function Board(props) {
 
     const annotationSensing = () => {
         // TODO: 
-    }
+    };
 
     return (
         <div className="board-div">
             <Helmet>
                 <title>{board.title}</title>
             </Helmet>
-            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} isSensing={isSensing} setIsSensing={setIsSensing} handleClickExplore={handleClickExplore} updateAnnotation={updateAnnotation} />
+            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} isSensing={isSensing} />
             <div className="main-board-div">
                 <div className="top-side-div">
-                    <NodeChart ref={nodeChartRef} states={states} setStates={setStates} transitions={transitions} setTransitions={setTransitions} />
+                    <h5>You are now at {stages[step]} Stage. {hints[step]}</h5>
+                    {(() => {
+                        switch (step) {
+                            case 0:
+                                return (<Button variant="contained" color={isSensing === -1 ? "primary" : "secondary"} onClick={handleClickExplore}>{isSensing === -1 ? "Explore" : "End Explore"}</Button>)
+                            case 1:
+                                return (<Button variant="contained" onClick={updateAnnotation}>Confirm Annotate</Button>)
+                            case 2:
+                                return (<Button variant="contained">Verify</Button>)
+                            default:
+                                break;
+                        }
+                    })()}
                 </div>
-                <div className="bottom-side-div">
-                    <TimelineChart />
+                <div className="mid-side-div">
+                    {step === 0 &&
+                        <NodeChart ref={nodeChartRef} step={step} states={states} setStates={setStates} transitions={transitions} setTransitions={setTransitions} />
+                    }
+                    {step === 1 &&
+                        <div style={{ width: "100%", height: "100%" }}>
+                            <div className="annotation-top-side-div">
+                                <NodeChart ref={nodeChartRef} step={step} states={states} setStates={setStates} transitions={transitions} setTransitions={setTransitions} />
+                            </div>
+                            <div className="annotation-bottom-side-div">
+                                <TimelineChart />
+                            </div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>

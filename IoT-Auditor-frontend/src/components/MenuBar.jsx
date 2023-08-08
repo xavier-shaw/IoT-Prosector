@@ -10,8 +10,8 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Stack } from '@mui/material';
 
 export default function MenuBar(props) {
-    let { title, onSave, onTitleChange, isSensing, handleClickExplore, updateAnnotation } = props;
-    
+    let { title, onSave, onTitleChange, step, handleClickNext, handleClickBack, isSensing} = props;
+
     return (
         <div>
             <AppBar sx={{ height: "60px", display: "flex" }} color="transparent" position="static">
@@ -50,28 +50,23 @@ export default function MenuBar(props) {
                     <div className='ms-auto'>
                         <Stack spacing={2} direction={"row"}>
                             <Button
-                                variant="contained"
-                                color={isSensing === -1? "primary" : "secondary"}
+                                variant="outlined"
+                                color="error"
                                 endIcon={<PlayArrowIcon />}
-                                onClick={handleClickExplore}
+                                disabled={step === 0 || isSensing !== -1}
+                                onClick={handleClickBack}
                             >
-                                {isSensing === -1? "Explore": "End Explore"}
+                                Back
                             </Button>
                             <Button
                                 variant="contained"
                                 color="primary"
                                 endIcon={<PlayArrowIcon />}
-                                onClick={updateAnnotation}
+                                disabled={step === 2 || isSensing !== -1}
+                                onClick={handleClickNext}
                             >
-                                Annotate
+                                Next
                             </Button>
-                            {/* <Button
-                                variant="contained"
-                                color="primary"
-                                endIcon={<PlayArrowIcon />}
-                            >
-                                Verify
-                            </Button> */}
                         </Stack>
                     </div>
                 </Toolbar>

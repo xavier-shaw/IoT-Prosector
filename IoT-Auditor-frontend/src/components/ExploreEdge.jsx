@@ -2,7 +2,7 @@ import { Chip, TextField } from '@mui/material';
 import React, { useEffect, useState } from 'react';
 import { getBezierPath, EdgeLabelRenderer, BaseEdge } from 'reactflow';
 
-export default function TransitionEdge(props) {
+export default function ExploreEdge(props) {
     let { sourceX,
         sourceY,
         sourcePosition,
@@ -11,8 +11,6 @@ export default function TransitionEdge(props) {
         targetPosition, 
         markerEnd,
         id, data } = props;
-    let [transitionName, setTransitionName] = useState(data.label);
-    let [editable, setEditable] = useState(false);
 
     const [edgePath, labelX, labelY] = getBezierPath({
         sourceX,
@@ -22,19 +20,6 @@ export default function TransitionEdge(props) {
         targetY,
         targetPosition
     });
-
-    const handleTextChange = (event) => {
-        setTransitionName(event.target.value);
-        data.label = event.target.value;
-    };
-
-    const handleChipClick = () => {
-        setEditable(true);
-    };
-
-    const handleTextBlur = () => {
-        setEditable(false);
-    }
 
     return (
         <>
@@ -50,10 +35,7 @@ export default function TransitionEdge(props) {
                     }}
                     className="nodrag nopan"
                 >
-                    {editable ?
-                        <TextField value={transitionName} onChange={handleTextChange} onBlur={handleTextBlur} autoFocus/>
-                        :
-                        <Chip label={transitionName} onClick={handleChipClick} />}
+                    <Chip label={data.label}/>
                 </div>
             </EdgeLabelRenderer>
         </>
