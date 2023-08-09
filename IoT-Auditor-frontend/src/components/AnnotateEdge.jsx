@@ -11,7 +11,8 @@ export default function AnnotateEdge(props) {
         targetPosition, 
         markerEnd,
         id, data } = props;
-    let [transitionName, setTransitionName] = useState(data.label);
+    const l = data.label;
+    let [transitionName, setTransitionName] = useState(l);
     let [editable, setEditable] = useState(false);
 
     const [edgePath, labelX, labelY] = getBezierPath({
@@ -24,8 +25,8 @@ export default function AnnotateEdge(props) {
     });
 
     const handleTextChange = (event) => {
-        setTransitionName(event.target.value);
         data.label = event.target.value;
+        setTransitionName(event.target.value);
     };
 
     const handleChipClick = () => {

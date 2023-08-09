@@ -9,6 +9,7 @@ export default function AnnotateNode(props) {
   let [stateName, setStateName] = useState(l);
 
   const onChange = (event) => {
+    data.label = event.target.value;
     setStateName(event.target.value);
   }
 

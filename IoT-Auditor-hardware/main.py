@@ -62,20 +62,34 @@ async def get_states_data():
     return {"message": "hello"}
 
 
-@app.get("/get_data/")
-async def get_data(device: str):
-    data = app.database["iotdatas"].find({"device": device})
-    # print(data)
-    center, radius = compute_data_features(data)
-    return {"message": str(center) + " and " + str(radius)}
-    # return {"center": center, "radius": radius}
+@app.get("/get_data")
+async def get_data():
+    devices = ["listening keyword", "listening monitor speech", "muted tap", "muted monitor speech"]
+    centers = []
+    radiuses = []
+    for device in devices:
+        data = app.database["iotdatas"].find({"device": device})
+        center, radius = compute_data_features(data)
+        centers.append(center)
+        radiuses.append(radius)
+    
+    for i in range(len(devices)):
+        now_device = devices[i]
+        now_center = centers[i]
+        now_radius = radiuses[i]
+        print(now_device + " (" + str(now_radius) + "):")
+        for j in range(i + 1, len(devices)):
+            cur_device = devices[j]
+            pairwise_distance = calculate_distance(centers[j], now_center)
+            print(now_device + " -> " + cur_device + ": " + str(pairwise_distance))
+        print("================================================")
 
+    return {"message": str(center) + " and " + str(radius)}
 
 @app.get("/draw")
 async def draw_tsne():
     draw()
     return {"message": "draw tsne chart"}
-
 
 @app.get("/start/")
 async def start_sensing(device: str):
@@ -148,8 +162,7 @@ def sensing(device):
     scaler_x = StandardScaler()  # the scaler for normalization
     new_state = True  # indicator for creating a new state
 
-    boring_time = 0  # indicator for the time since last new state was created
-    boring_threshold = 100  # the threshold for stable states
+    count = 0
 
     # Create Default POWER_OFF state as the first state
     new_state_info = {
@@ -161,149 +174,144 @@ def sensing(device):
     create_state(new_state_info)
 
 # ======================= Read data from data stream ========================================
-    while (len(state_clusters) < 10 and boring_time <= boring_threshold):
-        boring_time += 1
-        networks = []
+    while (count < 20):
+        count += 1
+        print("mean data point count: " + str(count))
+        # networks = []
         powers = []
         emanations = []
         
-        for i in range(10):
+        times = 10
+        while times > 0:
             q = multiprocessing.Queue()
-            p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
+            # p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
             p2 = multiprocessing.Process(target=power_data.power_data, args=(q,))
             p3 = multiprocessing.Process(
                 target=emanation_data.emanation_data, args=(q,))
 
-            p1.start()
+            # p1.start()
             p2.start()
             p3.start()
-            p1.join()
+            # p1.join()
             p2.join()
             p3.join()
-            n = q.get()
+            # n = q.get()
             p = q.get()
             e = q.get()
-
-            networks.append(n)
-            powers.append(p)
-            emanations.append(e)
-
-        print(powers)
-        print(emanations)
-        network = np.mean(networks, axis=0)
-        power = np.mean(powers, axis=0)
-        emanation = np.mean(emanations, axis=0)
-        # continue
-        # first = True
-        if len(power) > 0:
-            # if first:
-            #     first = False
-            #     continue
-            if len(network) == 0:
-                network = [0,0]
-
-            features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
+            # networks.append(n)
+            if len(p) > 0:
+                features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
                 x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
-            fea_network = [feature(network) for feature in features]
-            fea_power = [feature(power) for feature in features]
-            fea_emanation = [feature(emanation) for feature in features]
-            fea = np.array(fea_network + fea_power + fea_emanation)
-            fea = fea.reshape(1, fea.shape[0])
-            points_data.append(fea)
+                # fea_network = [feature(network) for feature in features]
+                fea_power = [feature(p) for feature in features]
+                fea_emanation = [feature(e) for feature in features]
+                if powers == []:
+                    powers = fea_power
+                    emanations = fea_emanation
+                else:
+                    powers = np.vstack((powers, fea_power))
+                    emanations = np.vstack((emanations, fea_emanation))
+                times -= 1
+        
+        fea_power_mean = np.mean(powers, axis=0)
+        fea_emanation_mean = np.mean(emanations, axis=0)
+        fea = np.hstack((fea_power_mean, fea_emanation_mean))
+        # fea = fea.reshape(1, fea.shape[0])
+        points_data.append(fea)
 
-            # Clustering Workflow:
-            # 1. calculate distance between data point and clusters's center points
-            # 2. if distance larger than threshold, it is an "outlier":
-            #       (a) if cumulated outlier count larger than count threshold => create new cluster for cumulated outliers
-            #       (b) if cumulated outlier count less than count threshold => record the outlier in a buffer
-            # 3. if distance smaller than threshold:
-            #       (a) if the nearest cluster is the previous cluster => add data point to the nearest cluster
-            #       (b) if the nearest cluster is another cluster => a new threshold to judge if add to it or not? => just add to the nearest cluster
-            #    => recalculate the center point of the modified cluster
-            #    => clear the outlier buffer to confirm they're outliers
+        # Clustering Workflow:
+        # 1. calculate distance between data point and clusters's center points
+        # 2. if distance larger than threshold, it is an "outlier":
+        #       (a) if cumulated outlier count larger than count threshold => create new cluster for cumulated outliers
+        #       (b) if cumulated outlier count less than count threshold => record the outlier in a buffer
+        # 3. if distance smaller than threshold:
+        #       (a) if the nearest cluster is the previous cluster => add data point to the nearest cluster
+        #       (b) if the nearest cluster is another cluster => a new threshold to judge if add to it or not? => just add to the nearest cluster
+        #    => recalculate the center point of the modified cluster
+        #    => clear the outlier buffer to confirm they're outliers
 
-            if len(centroids) == 0:  # if this is the first point
-                state_clusters.append([fea])
-                centroids.append(fea)
-                cluster_idx = len(state_clusters) - 1
-                new_state = True
+        if len(centroids) == 0:  # if this is the first point
+            state_clusters.append([fea])
+            centroids.append(fea)
+            cluster_idx = len(state_clusters) - 1
+            new_state = True
+        else:
+            # calculate distance
+            closest_centroid_index, closest_distance = get_closest_centroid(
+                fea, centroids)
+            print("new data point's closest distance: ", closest_distance)
+            print("now state: " + str(previous_data_cluster_idx))
+            # less than threshold
+            if closest_distance <= distance_threshold:
+                print("smaller than threshold")
+                # the nearest cluster is current state
+                if closest_centroid_index == previous_data_cluster_idx:
+                    belonged_cluster_idx = closest_centroid_index
+                # the nearest cluster is not current state
+                else:
+                    belonged_cluster_idx = closest_centroid_index
+                    new_state = True
+                state_clusters[belonged_cluster_idx].append(fea)
+                # recalculate the center point
+                centroids[belonged_cluster_idx] = calculate_centroid(
+                    state_clusters[belonged_cluster_idx])
+                # empty the outlier buffer and its idx
+                outlier_buffer = []
+                outlier_buffer_idx = []
+                cluster_idx = belonged_cluster_idx
+                print("Next state is: " + str(belonged_cluster_idx))
+            # larger than threshold
             else:
-                # calculate distance
-                closest_centroid_index, closest_distance = get_closest_centroid(
-                    fea, centroids)
-                print("new data point's closest distance: ", closest_distance)
-                print("now state: " + str(previous_data_cluster_idx))
-                # less than threshold
-                if closest_distance <= distance_threshold:
-                    print("smaller than threshold")
-                    # the nearest cluster is current state
-                    if closest_centroid_index == previous_data_cluster_idx:
-                        belonged_cluster_idx = closest_centroid_index
-                    # the nearest cluster is not current state
-                    else:
-                        belonged_cluster_idx = closest_centroid_index
-                        new_state = True
-                    state_clusters[belonged_cluster_idx].append(fea)
-                    # recalculate the center point
-                    centroids[belonged_cluster_idx] = calculate_centroid(
-                        state_clusters[belonged_cluster_idx])
+                print("larger than threshold")
+                print("outlier buffer count: " + str(len(outlier_buffer)))
+                # add to outlier buffer
+                outlier_buffer.append(fea)
+                # number of outliers more than the threshold => create new cluster
+                if len(outlier_buffer) >= count_threshold:
+                    # add the outlier buffer as a new cluster
+                    state_clusters.append(outlier_buffer)
+                    # calculate the center point of the new cluster
+                    centroids.append(calculate_centroid(outlier_buffer))
+                    new_state = True
+                    cluster_idx = len(state_clusters) - 1
+                    # update the outliers' state as this new cluster
+                    for outlier_idx in outlier_buffer_idx:
+                        # TODO: update all data's state in database
+                        data_points_info[outlier_idx]["state"] = str(
+                            cluster_idx)
                     # empty the outlier buffer and its idx
                     outlier_buffer = []
                     outlier_buffer_idx = []
-                    cluster_idx = belonged_cluster_idx
-                    print("Next state is: " + str(belonged_cluster_idx))
-                # larger than threshold
+                # number of outliers less than the threshold
                 else:
-                    print("larger than threshold")
-                    print("outlier buffer count: " + str(len(outlier_buffer)))
-                    # add to outlier buffer
-                    outlier_buffer.append(fea)
-                    # number of outliers more than the threshold => create new cluster
-                    if len(outlier_buffer) >= count_threshold:
-                        # add the outlier buffer as a new cluster
-                        state_clusters.append(outlier_buffer)
-                        # calculate the center point of the new cluster
-                        centroids.append(calculate_centroid(outlier_buffer))
-                        new_state = True
-                        cluster_idx = len(state_clusters) - 1
-                        # update the outliers' state as this new cluster
-                        for outlier_idx in outlier_buffer_idx:
-                            data_points_info[outlier_idx]["state"] = str(
-                                cluster_idx)
-                        # empty the outlier buffer and its idx
-                        outlier_buffer = []
-                        outlier_buffer_idx = []
-                    # number of outliers less than the threshold
-                    else:
-                        cluster_idx = -99  # indicate this data point is an outlier
-                        # add the idx to the buffer so that its state can be updated later
-                        outlier_buffer_idx.append(data_point_idx)
+                    cluster_idx = -99  # indicate this data point is an outlier
+                    # add the idx to the buffer so that its state can be updated later
+                    outlier_buffer_idx.append(data_point_idx)
 
-            data_point_info = {
-                "idx": str(data_point_idx),
-                "state": str(cluster_idx),
-                "data": fea.tolist(),
+        data_point_info = {
+            "idx": str(data_point_idx),
+            "state": str(cluster_idx),
+            "data": fea.tolist(),
+            "time": time.time() - start_time,
+            "device": device
+        }
+        # TODO: For testing
+        create_data(jsonable_encoder(data_point_info))
+
+        data_points_info[data_point_idx] = data_point_info
+        data_point_idx += 1
+        print(data_point_info)
+
+        if new_state:
+            new_state_info = {
                 "time": time.time() - start_time,
-                "device": device
+                "device": device,
+                "idx": str(cluster_idx),
+                "prev_idx": str(previous_data_cluster_idx)
             }
-            # TODO: For testing
-            create_data(jsonable_encoder(data_point_info))
-
-            data_points_info[data_point_idx] = data_point_info
-            data_point_idx += 1
-            print(data_point_info)
-
-            if new_state:
-                boring_time = 0  # reset the boring time
-                new_state_info = {
-                    "time": time.time() - start_time,
-                    "device": device,
-                    "idx": str(cluster_idx),
-                    "prev_idx": str(previous_data_cluster_idx)
-                }
-                create_state(new_state_info)
-                new_state = False
-                previous_data_cluster_idx = cluster_idx  # record the current state
+            create_state(new_state_info)
+            new_state = False
+            previous_data_cluster_idx = cluster_idx  # record the current state
 
     # Retrospective Workflow:
     # 1. now we collect all data points and states, we can first normalize the data
@@ -435,19 +443,18 @@ def compute_data_features(data):
 
 
 def draw():
-    devices = ["power_on_muted", "power_on_unmuted", "unmuted_volume_change",
-               "muted_volume_change", "muted_interaction", "unmuted_interaction"]
+    # devices = ["power_on_muted", "power_on_unmuted", "unmuted_volume_change",
+    #            "muted_volume_change", "muted_interaction", "unmuted_interaction"]
+    devices = ["listening keyword", "listening monitor speech", "muted tap", "muted monitor speech"]
     features = []
     point_state_dict = {}
     idx = 0
     for device in devices:
         data = app.database["iotdatas"].find({"device": device})
-        print(data)
         for d in data:
             point_state_dict[idx] = device
             idx += 1
-            features.append(d["data"][0])
-    print(features)
+            features.append(d["data"])
     scaler = StandardScaler()
     feature_scaled = scaler.fit_transform(features)
 
@@ -471,16 +478,9 @@ def draw():
         x = tsne_features_x[i]
         y = tsne_features_y[i]
         plt.scatter(x, y, c=colors[devices.index(
-            device)], marker=markers[cluster])
+            device)], marker=markers[cluster], label=f'State: {device} | Cluster: {cluster}')
+        
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), loc="upper right")
     plt.show()
-
-
-# def manual_update_total_states(device):
-#     states = app.database["iotstates"].find({"device": device})
-#     total_states = []
-#     for state in states:
-#         total_states.append({
-#             "id": "node_" + state.id,
-#             "time": state.time,
-#             "data": state.data
-#         })
