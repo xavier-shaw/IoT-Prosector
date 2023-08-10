@@ -3,15 +3,16 @@ import * as d3 from 'd3';
 
 export default function TimelineChart(props) {
     const { totalStates } = props;
-    const ref = useRef();
     const width = 1000;
     const height = 200;
     const offsetX = 40;
     const offsetY = 20;
 
     useEffect(() => {
+        document.getElementById("timeline-container").innerHTML = "";
 
-        const svg = d3.select(ref.current)
+        let svg = d3.select("#timeline-container")
+            .append("svg")
             .attr('width', width)
             .attr('height', height)
             .style('border', '1px solid lightgray');
@@ -20,7 +21,7 @@ export default function TimelineChart(props) {
 
         // Scales
         const xScale = d3.scaleLinear()
-            .domain([0, d3.max(totalStates, s => (s.time - baseTime) / 1e9)])
+            .domain([0, d3.max(totalStates, s => (s.time - baseTime))])
             .range([offsetX, width - 100]);
 
         const yScale = d3.scalePoint()
@@ -30,7 +31,7 @@ export default function TimelineChart(props) {
 
         // Line generator
         const line = d3.line()
-            .x(s => xScale((s.time - baseTime) / 1e9))
+            .x(s => xScale((s.time - baseTime)))
             .y(s => yScale(s.data.label));
 
         // Append the line to the SVG
@@ -46,7 +47,7 @@ export default function TimelineChart(props) {
             .data(totalStates)
             .enter()
             .append('circle')
-            .attr('cx', s => xScale((s.time - baseTime) / 1e9))
+            .attr('cx', s => xScale((s.time - baseTime)))
             .attr('cy', s => yScale(s.data.label))
             .attr('r', 5)
             .attr('fill', 'blue');
@@ -64,6 +65,7 @@ export default function TimelineChart(props) {
     }, [totalStates]);
 
     return (
-        <svg ref={ref} />
+        <div id="timeline-container">
+        </div>
     )
 }

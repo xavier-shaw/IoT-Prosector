@@ -19,14 +19,12 @@ from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 import json
+import threading
 
 config = dotenv_values(".env")
-
 username = quote_plus(config["NAME"])
 password = quote_plus(config["PASSWORD"])
 cluster = config["CLUSTER"]
-
-
 uri = 'mongodb+srv://' + username + ':' + password + \
     '@' + cluster + '/?retryWrites=true&w=majority'
 
@@ -46,6 +44,11 @@ def startup_db_client():
 def shutdown_db_client():
     app.client.close()
 
+
+# ====================================== GLOBAL VARIABLES ==================================================
+isSensing = False
+loop_thread = None
+centroids = {}
 # ========================================= Routes =========================================================
 
 
@@ -64,7 +67,8 @@ async def get_states_data():
 
 @app.get("/get_data")
 async def get_data():
-    devices = ["listening keyword", "listening monitor speech", "muted tap", "muted monitor speech"]
+    devices = ["listening keyword", "listening monitor speech",
+               "muted tap", "muted monitor speech"]
     centers = []
     radiuses = []
     for device in devices:
@@ -72,7 +76,7 @@ async def get_data():
         center, radius = compute_data_features(data)
         centers.append(center)
         radiuses.append(radius)
-    
+
     for i in range(len(devices)):
         now_device = devices[i]
         now_center = centers[i]
@@ -81,20 +85,54 @@ async def get_data():
         for j in range(i + 1, len(devices)):
             cur_device = devices[j]
             pairwise_distance = calculate_distance(centers[j], now_center)
-            print(now_device + " -> " + cur_device + ": " + str(pairwise_distance))
+            print(now_device + " -> " + cur_device +
+                  ": " + str(pairwise_distance))
         print("================================================")
 
     return {"message": str(center) + " and " + str(radius)}
+
 
 @app.get("/draw")
 async def draw_tsne():
     draw()
     return {"message": "draw tsne chart"}
 
+
 @app.get("/start/")
 async def start_sensing(device: str):
-    sensing(device)
-    return {"message": "Sensing IoT device at real time: " + device}
+    global isSensing
+    isSensing = True
+    if loop_thread is None or not loop_thread.is_alive():
+        loop_thread = threading.Thread(target=sensing(device))
+        loop_thread.start()
+        return {"message": "Sensing IoT device started: " + device}
+    else:
+        return {"message": "Sensing IoT device is already running"}
+
+
+@app.get("/prep/")
+async def prep_for_predict(device: str):
+    cal_clusters_center(device)
+    return {"message": "Here"}
+
+
+@app.get("/predict/")
+async def annotate_sensing(device: str):
+    global isSensing
+    isSensing = True
+    if loop_thread is None or not loop_thread.is_alive():
+        loop_thread = threading.Thread(target=predict_sensing(device))
+        loop_thread.start()
+        return {"message": "Predicting IoT device state: " + device}
+    else:
+        return {"message": "Predicting IoT device state is already running"}
+
+
+@app.get("/stop")
+async def stop_sensing():
+    global isSensing
+    isSensing = False
+    return {"message": "Stop sensing."}
 
 
 @app.get("/startlocal/")
@@ -132,6 +170,19 @@ def get_closest_centroid(point, centroids):
     return np.argmin(distances), np.min(distances)
 
 
+def predict_closest_centroid(point):
+    global centroids
+    min_distance = 1e9
+    current_state = ""
+    for state, center in centroids:
+        distance = calculate_distance(point, center)
+        if distance < min_distance:
+            min_distance = distance
+            current_state = state
+
+    return current_state
+
+
 def create_state(state):
     app.database["iotstates"].insert_one(state)
     print("==================== NEW STATE =====================")
@@ -166,26 +217,32 @@ def sensing(device):
 
     # Create Default POWER_OFF state as the first state
     new_state_info = {
-                    "time": time.time() - start_time,
-                    "device": device,
-                    "idx": "-1",
-                    "prev_idx": "-99"
-                }
+        "time": time.time() - start_time,
+        "device": device,
+        "idx": "-1",
+        "prev_idx": "-99"
+    }
     create_state(new_state_info)
 
 # ======================= Read data from data stream ========================================
-    while (count < 20):
+    global isSensing
+    while (isSensing):
+        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
+        if sensing_variable["value"] == "false":
+            isSensing = False
+            break
         count += 1
         print("mean data point count: " + str(count))
         # networks = []
         powers = []
         emanations = []
-        
+
         times = 10
         while times > 0:
             q = multiprocessing.Queue()
             # p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
-            p2 = multiprocessing.Process(target=power_data.power_data, args=(q,))
+            p2 = multiprocessing.Process(
+                target=power_data.power_data, args=(q,))
             p3 = multiprocessing.Process(
                 target=emanation_data.emanation_data, args=(q,))
 
@@ -201,7 +258,7 @@ def sensing(device):
             # networks.append(n)
             if len(p) > 0:
                 features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
-                x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
+                    x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
                 # fea_network = [feature(network) for feature in features]
                 fea_power = [feature(p) for feature in features]
                 fea_emanation = [feature(e) for feature in features]
@@ -212,11 +269,10 @@ def sensing(device):
                     powers = np.vstack((powers, fea_power))
                     emanations = np.vstack((emanations, fea_emanation))
                 times -= 1
-        
+
         fea_power_mean = np.mean(powers, axis=0)
         fea_emanation_mean = np.mean(emanations, axis=0)
         fea = np.hstack((fea_power_mean, fea_emanation_mean))
-        # fea = fea.reshape(1, fea.shape[0])
         points_data.append(fea)
 
         # Clustering Workflow:
@@ -295,12 +351,8 @@ def sensing(device):
             "time": time.time() - start_time,
             "device": device
         }
-        # TODO: For testing
-        create_data(jsonable_encoder(data_point_info))
-
         data_points_info[data_point_idx] = data_point_info
         data_point_idx += 1
-        print(data_point_info)
 
         if new_state:
             new_state_info = {
@@ -313,18 +365,77 @@ def sensing(device):
             new_state = False
             previous_data_cluster_idx = cluster_idx  # record the current state
 
+    # Store data in database
+    for data_point in data_points_info:
+        create_data(jsonable_encoder(data_point))
+
     # Retrospective Workflow:
     # 1. now we collect all data points and states, we can first normalize the data
     # 2. then we use TSNE to reduct the data vectors into 2-dimensional
     # 3. we store the data points with its features into the database
-    transformed_points_data = scaler_x.fit_transform(points_data)
-    tsne = TSNE(n_components=2)
-    tsne_points_data = tsne.fit_transform(transformed_points_data)
-    for idx in range(len(data_points_info)):
-        data_point = data_points_info[idx]
-        data_point["transformed_data"] = transformed_points_data[idx].tolist()
-        data_point["tsne_data"] = tsne_points_data[idx].tolist()
-        create_data(jsonable_encoder(data_point))
+    # transformed_points_data = scaler_x.fit_transform(points_data)
+    # tsne = TSNE(n_components=2)
+    # tsne_points_data = tsne.fit_transform(transformed_points_data)
+    # for idx in range(len(data_points_info)):
+    #     data_point = data_points_info[idx]
+    #     data_point["transformed_data"] = transformed_points_data[idx].tolist()
+    #     data_point["tsne_data"] = tsne_points_data[idx].tolist()
+    #     create_data(jsonable_encoder(data_point))
+
+
+def predict_sensing(device):
+    global isSensing
+    while (isSensing):
+        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
+        if sensing_variable["value"] == "false":
+            isSensing = False
+            break
+        powers = []
+        emanations = []
+        times = 3
+        while times > 0:
+            q = multiprocessing.Queue()
+            # p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
+            p2 = multiprocessing.Process(
+                target=power_data.power_data, args=(q,))
+            p3 = multiprocessing.Process(
+                target=emanation_data.emanation_data, args=(q,))
+
+            # p1.start()
+            p2.start()
+            p3.start()
+            # p1.join()
+            p2.join()
+            p3.join()
+            # n = q.get()
+            p = q.get()
+            e = q.get()
+            # networks.append(n)
+            if len(p) > 0:
+                features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
+                    x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
+                # fea_network = [feature(network) for feature in features]
+                fea_power = [feature(p) for feature in features]
+                fea_emanation = [feature(e) for feature in features]
+                if powers == []:
+                    powers = fea_power
+                    emanations = fea_emanation
+                else:
+                    powers = np.vstack((powers, fea_power))
+                    emanations = np.vstack((emanations, fea_emanation))
+                times -= 1
+
+        fea_power_mean = np.mean(powers, axis=0)
+        fea_emanation_mean = np.mean(emanations, axis=0)
+        fea = np.hstack((fea_power_mean, fea_emanation_mean))
+
+        current_state = predict_closest_centroid(fea)
+        predict_state = {
+            "device": device,
+            "state": current_state
+        }
+        app.database["predictstates"].replace_one(
+            {"state": current_state}, jsonable_encoder(predict_state), upsert=True)
 
 
 # ======================= Read data from static files =======================================
@@ -445,7 +556,8 @@ def compute_data_features(data):
 def draw():
     # devices = ["power_on_muted", "power_on_unmuted", "unmuted_volume_change",
     #            "muted_volume_change", "muted_interaction", "unmuted_interaction"]
-    devices = ["listening keyword", "listening monitor speech", "muted tap", "muted monitor speech"]
+    devices = ["listening keyword", "listening monitor speech",
+               "muted tap", "muted monitor speech"]
     features = []
     point_state_dict = {}
     idx = 0
@@ -479,8 +591,25 @@ def draw():
         y = tsne_features_y[i]
         plt.scatter(x, y, c=colors[devices.index(
             device)], marker=markers[cluster], label=f'State: {device} | Cluster: {cluster}')
-        
+
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys(), loc="upper right")
     plt.show()
+
+
+def cal_clusters_center(device):
+    states = app.database["iotstates"].find({"device": device})
+    datas = app.database["iotdatas"].find({"device": device})
+    states_idx = list({state.idx for state in states})
+    data_dict = {state_idx: [] for state_idx in states_idx}
+    for data in datas:
+        data_dict[data["state"]].append(data["data"])
+
+    center_dict = {}
+    for state, state_data in data_dict.items():
+        center_point = calculate_centroid(state_data)
+        center_dict[state] = center_point
+
+    global centroids
+    centroids = center_dict

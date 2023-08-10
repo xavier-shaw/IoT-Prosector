@@ -28,6 +28,8 @@ var stateRoutes = require("./api/routes/stateRoutes");
 stateRoutes(app);
 var dataRoutes = require("./api/routes/dataRoutes");
 dataRoutes(app);
+var sharedRoutes = require("./api/routes/sharedRoutes");
+sharedRoutes(app)
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

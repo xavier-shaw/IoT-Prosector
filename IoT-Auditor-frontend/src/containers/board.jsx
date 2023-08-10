@@ -26,7 +26,7 @@ export default function Board(props) {
     const [totalStates, setTotalStates] = useState([]);
     const [transitions, setTransitions] = useState([]);
     const [isSensing, setIsSensing] = useState(-1);
-    const [currentStateIdx, setCurrentStateIdx] = useState("-1");
+    const [currentStateIdx, setCurrentStateIdx] = useState("node_-1");
     const [currentTransitionIdx, setCurrentTransitionIdx] = useState("-1");
     const nodeChartRef = useRef(null);
 
@@ -64,17 +64,20 @@ export default function Board(props) {
     }, [board]);
 
     useEffect(() => {
-        let totalStatesCpy = totalStates;
+        let totalStatesCpy = cloneDeep(totalStates);
         for (const s of states) {
             for (const state of totalStatesCpy) {
                 if (s.id === state.id) {
                     state.data.label = s.data.label;
-                }   
+                }
             }
         };
         setTotalStates(totalStatesCpy);
-        console.log("total states", totalStates)
     }, [states])
+
+    useEffect(() => {
+        console.log("total states change", totalStates)
+    }, [totalStates])
 
     const handleClickNext = () => {
         if (step === 0) {
@@ -98,12 +101,11 @@ export default function Board(props) {
 
     const highlightStateAndTransition = (curStateIdx, curTransitionIdx) => {
         // delete old hint
-        if (currentStateIdx !== "-1") {
-            let prevStateNode = document.getElementById(currentStateIdx);
-            let prevTransitionLabel = document.getElementById(currentTransitionIdx + "_label");
-            prevStateNode.style.backgroundColor = "white";
-            prevTransitionLabel.style.backgroundColor = "white";
-        }
+        let prevStateNode = document.getElementById(currentStateIdx);
+        let prevTransitionLabel = document.getElementById(currentTransitionIdx + "_label");
+        prevStateNode.style.backgroundColor = "white";
+        prevTransitionLabel.style.backgroundColor = "white";
+
         // set new hint
         let curStateNode = document.getElementById(curStateIdx);
         let curTransitionEdge = document.getElementById(curTransitionIdx);
@@ -147,14 +149,24 @@ export default function Board(props) {
 
     const handleClickExplore = () => {
         if (isSensing !== -1) {
-            clearInterval(isSensing);
-            setIsSensing(-1);
+            axios
+                .get(window.BACKEND_ADDRESS + "/shared/stop")
+                .then((resp) => {
+                    console.log("stop sensing", resp.data);
+                    clearInterval(isSensing);
+                    setIsSensing(-1);
+                })
         }
         else {
-            let idx = setInterval(() => {
-                sensing();
-            }, 1000);
-            setIsSensing(idx);
+            axios
+                .get(window.BACKEND_ADDRESS + "/shared/start")
+                .then((resp) => {
+                    console.log("start sensing", resp.data);
+                    let idx = setInterval(() => {
+                        sensing();
+                    }, 1000);
+                    setIsSensing(idx);
+                })
         }
     };
 
@@ -168,23 +180,13 @@ export default function Board(props) {
                 let states = board.data.hasOwnProperty("statesDict") ? board.data.statesDict : {};
                 let transitions = board.data.hasOwnProperty("transitionsDict") ? board.data.transitionsDict : {};
                 let totalStates = [];
-                
-                // PUT THIS IN THE ANNOTATION STAGE BECAUSE NOW THE NODES HAVEN'T BE CREATED 
-                // // Hint for User => current stage and current transition
-                // if (iotStates.length !== 0) {
-                //     let curStateIdx = "node_" + iotStates[iotStates.length - 1].idx;
-                //     if (curStateIdx !== currentStateIdx) {
-                //         let curTransitionIdx = "edge_" + currentStateIdx + "-" + curStateIdx;
-                //         highlightStateAndTransition(curStateIdx, curTransitionIdx);
-                //     };
-                // }
 
                 for (const iotState of iotStates) {
                     // record this state's information
                     totalStates.push({
                         id: "node_" + iotState.idx,
                         time: iotState.time,
-                        data: { label: "State " + iotState.idx}
+                        data: { label: "State " + iotState.idx }
                     });
 
                     // if it is a new state => create a new node for this state
@@ -220,23 +222,25 @@ export default function Board(props) {
                     }
                     //  if it is an existing state => just add an edge to the existing node of this state (but the time attribute is ignored in current method)
                     else {
-                        let transition = {
-                            // current edge just means that there is a transition between, but not encode the temporal information (e.g. it's second time been here)
-                            id: "edge_" + iotState.prev_idx + "-" + iotState.idx,
-                            type: "transitionEdge",
-                            source: "node_" + iotState.prev_idx,
-                            target: "node_" + iotState.idx,
-                            markerEnd: {
-                                type: MarkerType.ArrowClosed,
-                                width: 20,
-                                height: 20,
-                                color: '#FF0072',
-                            },
-                            data: {
-                                label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
+                        if (!transitions.hasOwnProperty("edge_" + iotState.prev_idx + "-" + iotState.idx)) {
+                            let transition = {
+                                // current edge just means that there is a transition between, but not encode the temporal information (e.g. it's second time been here)
+                                id: "edge_" + iotState.prev_idx + "-" + iotState.idx,
+                                type: "transitionEdge",
+                                source: "node_" + iotState.prev_idx,
+                                target: "node_" + iotState.idx,
+                                markerEnd: {
+                                    type: MarkerType.ArrowClosed,
+                                    width: 20,
+                                    height: 20,
+                                    color: '#FF0072',
+                                },
+                                data: {
+                                    label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
+                                }
                             }
+                            transitions[transition.id] = transition;
                         }
-                        transitions[transition.id] = transition;
                     }
                 };
 
@@ -248,7 +252,20 @@ export default function Board(props) {
     };
 
     const annotationSensing = () => {
-        // TODO: 
+        axios
+            .get(window.BACKEND_ADDRESS + "/predict/" + board.title)
+            .then((resp) => {
+                let iotState = resp.data;
+                print("now iot state", iotState);
+
+                // PUT THIS IN THE ANNOTATION STAGE BECAUSE NOW THE NODES HAVEN'T BE CREATED 
+                // // Hint for User => current stage and current transition
+                let curStateIdx = "node_" + iotState.idx;
+                if (curStateIdx !== currentStateIdx) {
+                    let curTransitionIdx = "edge_" + currentStateIdx + "-" + curStateIdx;
+                    highlightStateAndTransition(curStateIdx, curTransitionIdx);
+                };
+            })
     };
 
     return (
