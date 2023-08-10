@@ -4,7 +4,7 @@ import "./StateNode.css";
 import { TextField } from '@mui/material';
 
 export default function AnnotateNode(props) {
-  let { data } = props;
+  let { id, data } = props;
   const l = data.label;
   let [stateName, setStateName] = useState(l);
 
@@ -14,7 +14,7 @@ export default function AnnotateNode(props) {
   }
 
   return (
-    <div className="state-node" id={"state-" + data.id}>
+    <div className="state-node" id={id}>
       <Handle type="target" position={Position.Top} />
       <div>
         <TextField label="State" value={stateName} onChange={onChange} />

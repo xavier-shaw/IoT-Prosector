@@ -29,7 +29,9 @@ stateRoutes(app);
 var dataRoutes = require("./api/routes/dataRoutes");
 dataRoutes(app);
 var sharedRoutes = require("./api/routes/sharedRoutes");
-sharedRoutes(app)
+sharedRoutes(app);
+var predictRoutes = require("./api/routes/predictRoutes");
+predictRoutes(app);
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

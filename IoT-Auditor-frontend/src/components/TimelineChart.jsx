@@ -9,6 +9,7 @@ export default function TimelineChart(props) {
     const offsetY = 20;
 
     useEffect(() => {
+        console.log("total states", totalStates);
         document.getElementById("timeline-container").innerHTML = "";
 
         let svg = d3.select("#timeline-container")

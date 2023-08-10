@@ -10,7 +10,7 @@ import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
 import { MarkerType } from "reactflow";
-import { Button, Step, StepConnector, stepConnectorClasses, StepLabel, Stepper } from "@mui/material";
+import { Button } from "@mui/material";
 
 export default function Board(props) {
     let params = useParams();
@@ -26,9 +26,10 @@ export default function Board(props) {
     const [totalStates, setTotalStates] = useState([]);
     const [transitions, setTransitions] = useState([]);
     const [isSensing, setIsSensing] = useState(-1);
-    const [currentStateIdx, setCurrentStateIdx] = useState("node_-1");
-    const [currentTransitionIdx, setCurrentTransitionIdx] = useState("-1");
     const nodeChartRef = useRef(null);
+    const ref = useRef({});
+    ref.current.currentStateIdx = "-1"
+    ref.current.currentTransitionIdx = "-1"
 
     useEffect(() => {
         axios
@@ -38,6 +39,12 @@ export default function Board(props) {
                 board_data.data = JSON.parse(board_data.data);
                 console.log("board data", board_data);
                 setBoard(board_data);
+                getTotalStates(board_data.title);
+                axios
+                    .get(window.BACKEND_ADDRESS + "/shared/update/" + board_data.title)
+                    .then((resp) => {
+                        console.log("device", resp.data);
+                    })
             });
         return () => {
         }
@@ -75,9 +82,25 @@ export default function Board(props) {
         setTotalStates(totalStatesCpy);
     }, [states])
 
-    useEffect(() => {
-        console.log("total states change", totalStates)
-    }, [totalStates])
+    const getTotalStates = (title) => {
+        axios.
+            get(window.BACKEND_ADDRESS + "/states/" + title)
+            .then((resp) => {
+                let iotStates = resp.data;
+                let totalStates = [];
+
+                for (const iotState of iotStates) {
+                    // record this state's information
+                    totalStates.push({
+                        id: "node_" + iotState.idx,
+                        time: iotState.time,
+                        data: { label: "State " + iotState.idx }
+                    });
+                }
+
+                setTotalStates(totalStates);
+            })
+    };
 
     const handleClickNext = () => {
         if (step === 0) {
@@ -100,20 +123,22 @@ export default function Board(props) {
     };
 
     const highlightStateAndTransition = (curStateIdx, curTransitionIdx) => {
-        // delete old hint
-        let prevStateNode = document.getElementById(currentStateIdx);
-        let prevTransitionLabel = document.getElementById(currentTransitionIdx + "_label");
-        prevStateNode.style.backgroundColor = "white";
-        prevTransitionLabel.style.backgroundColor = "white";
+        console.log("prev state idx", ref.current.currentStateIdx)
+        console.log("curstateidx", curStateIdx);
+        console.log("curtransitionidx", curTransitionIdx);
+        if (ref.current.currentStateIdx !== "-1") {
+            // delete old hint
+            let prevStateNode = document.getElementById("node_" + ref.current.currentStateIdx);
+            let prevTransitionLabel = document.getElementById(ref.current.currentTransitionIdx + "_label");
+            prevStateNode.style.backgroundColor = "white";
+            prevTransitionLabel.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
+        }
 
         // set new hint
-        let curStateNode = document.getElementById(curStateIdx);
-        let curTransitionEdge = document.getElementById(curTransitionIdx);
+        let curStateNode = document.getElementById("node_" + curStateIdx);
+        let curTransitionEdge = document.getElementById(curTransitionIdx + "_label");
         curStateNode.style.backgroundColor = "skyblue";
         curTransitionEdge.style.backgroundColor = "skyblue";
-
-        setCurrentTransitionIdx(curTransitionIdx);
-        setCurrentStateIdx(curStateIdx);
     };
 
     const onSave = () => {
@@ -147,21 +172,45 @@ export default function Board(props) {
         nodeChartRef.current.updateAnnotation();
     };
 
+    const handleClickAnnotate = () => {
+        if (isSensing !== -1) {
+            axios
+                .get(window.BACKEND_ADDRESS + "/shared/stop")
+                .then((resp) => {
+                    console.log("stop sensing at annotation stage", resp.data);
+                    clearInterval(isSensing);
+                    setIsSensing(-1);
+                });
+            updateAnnotation();
+        }
+        else {
+            axios
+                .get(window.BACKEND_ADDRESS + "/shared/start/" + "annotation")
+                .then((resp) => {
+                    console.log("start sensing at annotation stage", resp.data);
+                    let idx = setInterval(() => {
+                        annotationSensing();
+                    }, 1000);
+                    setIsSensing(idx);
+                })
+        }
+    };
+
     const handleClickExplore = () => {
         if (isSensing !== -1) {
             axios
                 .get(window.BACKEND_ADDRESS + "/shared/stop")
                 .then((resp) => {
-                    console.log("stop sensing", resp.data);
+                    console.log("stop sensing at exploration stage", resp.data);
                     clearInterval(isSensing);
                     setIsSensing(-1);
                 })
         }
         else {
             axios
-                .get(window.BACKEND_ADDRESS + "/shared/start")
+                .get(window.BACKEND_ADDRESS + "/shared/start/" + "exploration")
                 .then((resp) => {
-                    console.log("start sensing", resp.data);
+                    console.log("start sensing at exploration stage", resp.data);
                     let idx = setInterval(() => {
                         sensing();
                     }, 1000);
@@ -255,16 +304,18 @@ export default function Board(props) {
         axios
             .get(window.BACKEND_ADDRESS + "/predict/" + board.title)
             .then((resp) => {
-                let iotState = resp.data;
-                print("now iot state", iotState);
-
-                // PUT THIS IN THE ANNOTATION STAGE BECAUSE NOW THE NODES HAVEN'T BE CREATED 
-                // // Hint for User => current stage and current transition
-                let curStateIdx = "node_" + iotState.idx;
-                if (curStateIdx !== currentStateIdx) {
-                    let curTransitionIdx = "edge_" + currentStateIdx + "-" + curStateIdx;
-                    highlightStateAndTransition(curStateIdx, curTransitionIdx);
-                };
+                let curState = resp.data;
+                console.log("now iot state", curState);
+                if (curState.length > 0) {
+                    // Hint for User => current stage and current transition
+                    let curStateIdx = curState[0].state;
+                    if (curStateIdx !== ref.current.currentStateIdx) {
+                        let curTransitionIdx = "edge_" + ref.current.currentStateIdx + "-" + curStateIdx;
+                        highlightStateAndTransition(curStateIdx, curTransitionIdx);
+                        ref.current.currentStateIdx = curStateIdx;
+                        ref.current.currentTransitionIdx = curTransitionIdx;
+                    };
+                }
             })
     };
 
@@ -282,7 +333,7 @@ export default function Board(props) {
                             case 0:
                                 return (<Button variant="contained" color={isSensing === -1 ? "primary" : "secondary"} onClick={handleClickExplore}>{isSensing === -1 ? "Explore" : "End Explore"}</Button>)
                             case 1:
-                                return (<Button variant="contained" onClick={updateAnnotation}>Confirm Annotate</Button>)
+                                return (<Button variant="contained" color={isSensing === -1 ? "primary" : "secondary"} onClick={handleClickAnnotate}>{isSensing === -1 ? "Start Annotation" : "End Annotation"}</Button>)
                             case 2:
                                 return (<Button variant="contained">Verify</Button>)
                             default:

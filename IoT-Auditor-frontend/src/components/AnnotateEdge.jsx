@@ -47,7 +47,9 @@ export default function AnnotateEdge(props) {
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
                         fontSize: 10,
-                        pointerEvents: 'all'
+                        pointerEvents: 'all',
+                        backgroundColor: "rgba(0, 0, 0, 0.08)",
+                        borderRadius: 10
                     }}
                     className="nodrag nopan"
                 >

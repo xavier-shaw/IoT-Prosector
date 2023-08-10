@@ -30,6 +30,12 @@ uri = 'mongodb+srv://' + username + ':' + password + \
 
 app = FastAPI()
 
+# ====================================== GLOBAL VARIABLES ==================================================
+listening = True
+explore_thread = None
+predict_thread = None
+centroids = {}
+
 
 @app.on_event("startup")
 def startup_db_client():
@@ -38,17 +44,45 @@ def startup_db_client():
     print("Connected to the MongoDB database!")
     print(app.client)
     print(app.database)
+    global explore_thread, predict_thread
+    if explore_thread is None or not explore_thread.is_alive():
+        explore_thread = threading.Thread(target=explore)
+        explore_thread.daemon = True
+        explore_thread.start()
+    if predict_thread is None or not predict_thread.is_alive():
+        predict_thread = threading.Thread(target=predict)
+        predict_thread.daemon = True
+        predict_thread.start()
 
 
 @app.on_event("shutdown")
 def shutdown_db_client():
+    global explore_thread, predict_thread, listening
+    listening = False
+    explore_thread.join()
+    predict_thread.join()
     app.client.close()
 
 
-# ====================================== GLOBAL VARIABLES ==================================================
-isSensing = False
-loop_thread = None
-centroids = {}
+def explore():
+    global listening
+    while listening:
+        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
+        device_variable = app.database["sharedvariables"].find_one({"name": "device"})
+        if sensing_variable["value"] == "exploration":
+            print("start sensing at exploration stage!!!!!")
+            sensing(device_variable["value"])
+
+def predict():
+    global listening
+    while listening:
+        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
+        device_variable = app.database["sharedvariables"].find_one({"name": "device"})
+        if sensing_variable["value"] == "annotation":
+            print("start sensing at annotation stage!!!!!")
+            cal_clusters_center(device_variable["value"])
+            predict_sensing(device_variable["value"])
+
 # ========================================= Routes =========================================================
 
 
@@ -174,7 +208,7 @@ def predict_closest_centroid(point):
     global centroids
     min_distance = 1e9
     current_state = ""
-    for state, center in centroids:
+    for state, center in centroids.items():
         distance = calculate_distance(point, center)
         if distance < min_distance:
             min_distance = distance
@@ -204,7 +238,7 @@ def sensing(device):
     data_point_idx = 0
     state_clusters = []  # identified clusters
     centroids = []  # center point of clusters
-    distance_threshold = 2
+    distance_threshold = 1.2
     previous_data_cluster_idx = -1  # the state of previous data
     # TODO: threshold for new cluster (times of continous outlier)
     count_threshold = 2
@@ -225,11 +259,11 @@ def sensing(device):
     create_state(new_state_info)
 
 # ======================= Read data from data stream ========================================
-    global isSensing
-    while (isSensing):
-        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
+    while (True):
+        sensing_variable = app.database["sharedvariables"].find_one(
+            {"name": "sensing"})
         if sensing_variable["value"] == "false":
-            isSensing = False
+            print("stop sensing at exploration stage!!!!!")
             break
         count += 1
         print("mean data point count: " + str(count))
@@ -340,7 +374,7 @@ def sensing(device):
                     outlier_buffer_idx = []
                 # number of outliers less than the threshold
                 else:
-                    cluster_idx = -99  # indicate this data point is an outlier
+                    cluster_idx = previous_data_cluster_idx  # indicate this data point is an outlier
                     # add the idx to the buffer so that its state can be updated later
                     outlier_buffer_idx.append(data_point_idx)
 
@@ -366,7 +400,7 @@ def sensing(device):
             previous_data_cluster_idx = cluster_idx  # record the current state
 
     # Store data in database
-    for data_point in data_points_info:
+    for data_point in data_points_info.values():
         create_data(jsonable_encoder(data_point))
 
     # Retrospective Workflow:
@@ -384,11 +418,11 @@ def sensing(device):
 
 
 def predict_sensing(device):
-    global isSensing
-    while (isSensing):
-        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
+    while (True):
+        sensing_variable = app.database["sharedvariables"].find_one(
+            {"name": "sensing"})
         if sensing_variable["value"] == "false":
-            isSensing = False
+            print("stop sensing at annotation stage!!!!!")
             break
         powers = []
         emanations = []
@@ -434,8 +468,11 @@ def predict_sensing(device):
             "device": device,
             "state": current_state
         }
-        app.database["predictstates"].replace_one(
-            {"state": current_state}, jsonable_encoder(predict_state), upsert=True)
+        app.database["predictstates"].delete_many({"device": device})
+        app.database["predictstates"].insert_one(jsonable_encoder(predict_state))
+    
+    app.database["predictstates"].delete_many({"device": device})
+
 
 
 # ======================= Read data from static files =======================================
@@ -601,8 +638,12 @@ def draw():
 def cal_clusters_center(device):
     states = app.database["iotstates"].find({"device": device})
     datas = app.database["iotdatas"].find({"device": device})
-    states_idx = list({state.idx for state in states})
-    data_dict = {state_idx: [] for state_idx in states_idx}
+    data_dict = {}
+    for state in states:
+        state_idx = state["idx"]
+        if state_idx != "-1" and state_idx != "-99" and state_idx not in data_dict:
+            data_dict[state_idx] = []
+
     for data in datas:
         data_dict[data["state"]].append(data["data"])
 
