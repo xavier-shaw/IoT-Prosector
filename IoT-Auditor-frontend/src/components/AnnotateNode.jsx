@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Handle, Position } from 'reactflow';
-import "./StateNode.css";
 import { TextField } from '@mui/material';
 
 export default function AnnotateNode(props) {
   let { id, data } = props;
   const l = data.label;
-  let [stateName, setStateName] = useState(l);
+  const [stateName, setStateName] = useState(l);
+  const [editable, setEditable] = useState(false);
 
   const onChange = (event) => {
     data.label = event.target.value;
@@ -14,12 +14,14 @@ export default function AnnotateNode(props) {
   }
 
   return (
-    <div className="state-node" id={id}>
+    <>
       <Handle type="target" position={Position.Top} />
-      <div>
-        <TextField label="State" value={stateName} onChange={onChange} />
-      </div>
+      {editable ?
+        <TextField size='small' label="State" value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag' />
+        :
+        <h5 onClick={() => { setEditable(true) }}>{stateName}</h5>
+      }
       <Handle type="source" position={Position.Bottom} />
-    </div>
+    </>
   );
 }

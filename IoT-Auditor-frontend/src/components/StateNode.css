@@ -1,7 +1,12 @@
 .state-node {
   height: 80px;
-  border: 1px solid #eee;
+  width: 150px;
+  border: 2px solid #6d8ee0;
   padding: 10px;
   border-radius: 10px;
-  background: white;
+  background: lightgrey;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }

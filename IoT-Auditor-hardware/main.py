@@ -67,17 +67,22 @@ def shutdown_db_client():
 def explore():
     global listening
     while listening:
-        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
-        device_variable = app.database["sharedvariables"].find_one({"name": "device"})
+        sensing_variable = app.database["sharedvariables"].find_one(
+            {"name": "sensing"})
+        device_variable = app.database["sharedvariables"].find_one(
+            {"name": "device"})
         if sensing_variable["value"] == "exploration":
             print("start sensing at exploration stage!!!!!")
             sensing(device_variable["value"])
 
+
 def predict():
     global listening
     while listening:
-        sensing_variable = app.database["sharedvariables"].find_one({"name": "sensing"})
-        device_variable = app.database["sharedvariables"].find_one({"name": "device"})
+        sensing_variable = app.database["sharedvariables"].find_one(
+            {"name": "sensing"})
+        device_variable = app.database["sharedvariables"].find_one(
+            {"name": "device"})
         if sensing_variable["value"] == "annotation":
             print("start sensing at annotation stage!!!!!")
             cal_clusters_center(device_variable["value"])
@@ -259,11 +264,13 @@ def sensing(device):
     create_state(new_state_info)
 
 # ======================= Read data from data stream ========================================
-    while (True):
+    isSensing = True
+    while (isSensing):
         sensing_variable = app.database["sharedvariables"].find_one(
             {"name": "sensing"})
         if sensing_variable["value"] == "false":
             print("stop sensing at exploration stage!!!!!")
+            isSensing = False
             break
         count += 1
         print("mean data point count: " + str(count))
@@ -271,8 +278,8 @@ def sensing(device):
         powers = []
         emanations = []
 
-        times = 10
-        while times > 0:
+        times = 0
+        while times < 10:
             q = multiprocessing.Queue()
             # p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
             p2 = multiprocessing.Process(
@@ -302,7 +309,8 @@ def sensing(device):
                 else:
                     powers = np.vstack((powers, fea_power))
                     emanations = np.vstack((emanations, fea_emanation))
-                times -= 1
+                times += 1
+                print("data points: " + str(times) + "/10")
 
         fea_power_mean = np.mean(powers, axis=0)
         fea_emanation_mean = np.mean(emanations, axis=0)
@@ -374,7 +382,8 @@ def sensing(device):
                     outlier_buffer_idx = []
                 # number of outliers less than the threshold
                 else:
-                    cluster_idx = previous_data_cluster_idx  # indicate this data point is an outlier
+                    # indicate this data point is an outlier
+                    cluster_idx = previous_data_cluster_idx
                     # add the idx to the buffer so that its state can be updated later
                     outlier_buffer_idx.append(data_point_idx)
 
@@ -426,8 +435,8 @@ def predict_sensing(device):
             break
         powers = []
         emanations = []
-        times = 3
-        while times > 0:
+        times = 0
+        while times < 3:
             q = multiprocessing.Queue()
             # p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
             p2 = multiprocessing.Process(
@@ -457,7 +466,8 @@ def predict_sensing(device):
                 else:
                     powers = np.vstack((powers, fea_power))
                     emanations = np.vstack((emanations, fea_emanation))
-                times -= 1
+                times += 1
+                print("data points: " + str(times) + "/3")
 
         fea_power_mean = np.mean(powers, axis=0)
         fea_emanation_mean = np.mean(emanations, axis=0)
@@ -468,11 +478,11 @@ def predict_sensing(device):
             "device": device,
             "state": current_state
         }
-        app.database["predictstates"].delete_many({"device": device})
-        app.database["predictstates"].insert_one(jsonable_encoder(predict_state))
-    
-    app.database["predictstates"].delete_many({"device": device})
+        # app.database["predictstates"].delete_many({"device": device})
+        app.database["predictstates"].insert_one(
+            jsonable_encoder(predict_state))
 
+    app.database["predictstates"].delete_many({"device": device})
 
 
 # ======================= Read data from static files =======================================

@@ -5,12 +5,13 @@ import "./board.css";
 import axios from "axios";
 import { useState } from "react";
 import { useEffect } from "react";
-import { cloneDeep } from 'lodash'
+import { cloneDeep } from 'lodash';
 import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
 import { MarkerType } from "reactflow";
-import { Button } from "@mui/material";
+import { Button, Chip } from "@mui/material";
+import SideNodeBar from "../components/SideNodeBar";
 
 export default function Board(props) {
     let params = useParams();
@@ -28,8 +29,6 @@ export default function Board(props) {
     const [isSensing, setIsSensing] = useState(-1);
     const nodeChartRef = useRef(null);
     const ref = useRef({});
-    ref.current.currentStateIdx = "-1"
-    ref.current.currentTransitionIdx = "-1"
 
     useEffect(() => {
         axios
@@ -122,26 +121,22 @@ export default function Board(props) {
         setBoard(prevBoard => ({ ...prevBoard, title: titleText }));
     };
 
-    const highlightStateAndTransition = (curStateIdx, curTransitionIdx) => {
-        console.log("prev state idx", ref.current.currentStateIdx)
-        console.log("curstateidx", curStateIdx);
-        console.log("curtransitionidx", curTransitionIdx);
-        if (ref.current.currentStateIdx !== "-1") {
-            // delete old hint
-            let prevStateNode = document.getElementById("node_" + ref.current.currentStateIdx);
-            let prevTransitionLabel = document.getElementById(ref.current.currentTransitionIdx + "_label");
-            prevStateNode.style.backgroundColor = "white";
-            prevTransitionLabel.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
-        }
+    const deletePrevHightlight = (prevStateIdx, curStateIdx) => {
+        let prevStateNode = document.getElementById("node_" + curStateIdx);
+        prevStateNode.style.backgroundColor = "white";
+        let prevTransitionLabel = document.getElementById("edge_" + prevStateIdx + "-" + curStateIdx + "_label");
+        prevTransitionLabel.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
+    };
 
-        // set new hint
-        let curStateNode = document.getElementById("node_" + curStateIdx);
-        let curTransitionEdge = document.getElementById(curTransitionIdx + "_label");
-        curStateNode.style.backgroundColor = "skyblue";
-        curTransitionEdge.style.backgroundColor = "skyblue";
+    const addNewHighlight = (curStateIdx, nextStateIdx) => {
+        let nextStateNode = document.getElementById("node_" + nextStateIdx);
+        let nextTransitionEdge = document.getElementById("edge_" + curStateIdx + "-" + nextStateIdx + "_label");
+        nextStateNode.style.backgroundColor = "skyblue";
+        nextTransitionEdge.style.backgroundColor = "skyblue";
     };
 
     const onSave = () => {
+        updateAnnotation();
         let boardCpy = cloneDeep(board);
         let boardData = boardCpy.data;
         let statesDict = boardData.hasOwnProperty("statesDict") ? boardData.statesDict : {};
@@ -244,9 +239,23 @@ export default function Board(props) {
                             id: "node_" + iotState.idx,
                             type: "stateNode",
                             time: iotState.time,
-                            // TODO: refine the position inital layout
                             position: { x: 50 + 300 * (parseInt(iotState.idx)), y: 100 },
-                            data: { label: "State " + iotState.idx }
+                            positionAbsolute: { x: 50 + 300 * (parseInt(iotState.idx)), y: 100 },
+                            data: { label: "State " + iotState.idx },
+                            style: {
+                                width: "150px",
+                                height: "80px",
+                                borderWidth: "1px",
+                                borderStyle: "solid",
+                                borderColor: "#6d8ee0",
+                                padding: "10px",
+                                borderRadius: "10px",
+                                backgroundColor: "lightgrey",
+                                display: "flex",
+                                justifyContent: "center",
+                                alignItems: "center"
+                            },
+                            zIndex: 1003
                         };
                         states[iotState.idx] = state;
 
@@ -264,7 +273,8 @@ export default function Board(props) {
                                 },
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
-                                }
+                                },
+                                zIndex: 1003
                             };
                             transitions[transition.id] = transition;
                         }
@@ -286,7 +296,8 @@ export default function Board(props) {
                                 },
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
-                                }
+                                },
+                                zIndex: 1003
                             }
                             transitions[transition.id] = transition;
                         }
@@ -308,13 +319,11 @@ export default function Board(props) {
                 console.log("now iot state", curState);
                 if (curState.length > 0) {
                     // Hint for User => current stage and current transition
-                    let curStateIdx = curState[0].state;
-                    if (curStateIdx !== ref.current.currentStateIdx) {
-                        let curTransitionIdx = "edge_" + ref.current.currentStateIdx + "-" + curStateIdx;
-                        highlightStateAndTransition(curStateIdx, curTransitionIdx);
-                        ref.current.currentStateIdx = curStateIdx;
-                        ref.current.currentTransitionIdx = curTransitionIdx;
-                    };
+                    let prevStateIdx = curState.length >= 3 ? curState[curState.length - 3].state : "-1";
+                    let curStateIdx = curState.length >= 2 ? curState[curState.length - 2].state : "-1";
+                    let nextStateIdx = curState[curState.length - 1].state;
+                    addNewHighlight(curStateIdx, nextStateIdx);
+                    deletePrevHightlight(prevStateIdx, curStateIdx);
                 }
             })
     };
@@ -351,7 +360,8 @@ export default function Board(props) {
                                 <NodeChart ref={nodeChartRef} step={step} states={states} setStates={setStates} transitions={transitions} setTransitions={setTransitions} />
                             </div>
                             <div className="annotation-bottom-side-div">
-                                <TimelineChart totalStates={totalStates} />
+                                {/* <TimelineChart totalStates={totalStates} /> */}
+                                <SideNodeBar />
                             </div>
                         </div>
                     }

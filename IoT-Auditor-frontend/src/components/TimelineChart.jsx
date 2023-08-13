@@ -3,9 +3,9 @@ import * as d3 from 'd3';
 
 export default function TimelineChart(props) {
     const { totalStates } = props;
-    const width = 1000;
+    const width = 800;
     const height = 200;
-    const offsetX = 40;
+    const offsetX = 80;
     const offsetY = 20;
 
     useEffect(() => {

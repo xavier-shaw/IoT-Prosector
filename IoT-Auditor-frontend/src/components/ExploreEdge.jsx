@@ -31,7 +31,8 @@ export default function ExploreEdge(props) {
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
                         fontSize: 10,
-                        pointerEvents: 'all'
+                        pointerEvents: 'all',
+                        zIndex: 1003
                     }}
                     className="nodrag nopan"
                 >

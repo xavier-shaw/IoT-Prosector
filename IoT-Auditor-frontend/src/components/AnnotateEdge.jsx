@@ -1,4 +1,5 @@
 import { Chip, TextField } from '@mui/material';
+import zIndex from '@mui/material/styles/zIndex';
 import React, { useState } from 'react';
 import { getBezierPath, EdgeLabelRenderer, BaseEdge } from 'reactflow';
 
@@ -49,12 +50,13 @@ export default function AnnotateEdge(props) {
                         fontSize: 10,
                         pointerEvents: 'all',
                         backgroundColor: "rgba(0, 0, 0, 0.08)",
-                        borderRadius: 10
+                        borderRadius: 10,
+                        zIndex: 1003
                     }}
                     className="nodrag nopan"
                 >
                     {editable ?
-                        <TextField value={transitionName} onChange={handleTextChange} onBlur={handleTextBlur} autoFocus/>
+                        <TextField size='small' value={transitionName} onChange={handleTextChange} onBlur={handleTextBlur} autoFocus/>
                         :
                         <Chip label={transitionName} onClick={handleChipClick} />}
                 </div>

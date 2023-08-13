@@ -1,0 +1,55 @@
+.side-bar-div {
+    width: 100%;
+    height: 100%; 
+    display: flex;
+    justify-content: center;
+    background-color: ghostwhite;
+}
+
+.system-node-div {
+    background: white;
+    border-left: 1rem solid #8a8a8a;
+    border-radius: 0.5rem;
+    box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    font-family: Helvetica;
+    font-weight: bold;
+    padding: 10px;
+    margin: 20px 10px;
+    height: 80px;
+    width: 160px;
+    border-color: #cfc098;
+}
+
+.mode-node-div {
+    background: white;
+    border-left: 1rem solid #8a8a8a;
+    border-radius: 0.5rem;
+    box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    font-family: Helvetica;
+    font-weight: bold;
+    padding: 10px;
+    margin: 20px 10px;
+    height: 80px;
+    width: 160px;
+    border-color: #bd938c;
+}
+
+.operation-node-div {
+    background: white;
+    border-left: 1rem solid #8a8a8a;
+    border-radius: 0.5rem;
+    box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    font-family: Helvetica;
+    font-weight: bold;
+    padding: 10px;
+    margin: 20px 10px;
+    height: 80px;
+    width: 160px;
+    border-color: #6d8ee0;
+}
