@@ -92,12 +92,11 @@ const FlowChart = forwardRef((props, ref) => {
             nodeStyle = {
                 width: "800px",
                 height: "400px",
-                borderWidth: "5px",
+                borderWidth: "3px",
                 borderStyle: "solid",
-                borderColor: "#cfc098",
                 padding: "10px",
                 borderRadius: "10px",
-                backgroundColor: "lightgrey",
+                backgroundColor: "#f9f7f3",
             }
         }
         else if (type === "modeNode") {
@@ -107,10 +106,9 @@ const FlowChart = forwardRef((props, ref) => {
                 height: "250px",
                 borderWidth: "3px",
                 borderStyle: "solid",
-                borderColor: "#bd938c",
                 padding: "10px",
                 borderRadius: "10px",
-                backgroundColor: "lightgrey",
+                backgroundColor: "#e2fdff",
             }
         }
         else if (type === "groupNode") {
@@ -121,10 +119,9 @@ const FlowChart = forwardRef((props, ref) => {
                 height: "150px",
                 borderWidth: "3px",
                 borderStyle: "solid",
-                borderColor: "#ec6681",
                 padding: "10px",
                 borderRadius: "10px",
-                backgroundColor: "lightgrey",
+                backgroundColor: "#bfd7ff",
             }
         }
         else {
@@ -134,10 +131,9 @@ const FlowChart = forwardRef((props, ref) => {
                 height: "80px",
                 borderWidth: "1px",
                 borderStyle: "solid",
-                borderColor: "#6d8ee0",
                 padding: "10px",
                 borderRadius: "10px",
-                backgroundColor: "lightgrey",
+                backgroundColor: "#788bff",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center"
@@ -272,7 +268,22 @@ const FlowChart = forwardRef((props, ref) => {
                 if (node.id === target?.id) {
                     node.style = { ...node.style, backgroundColor: "lightyellow" };
                 } else {
-                    node.style = { ...node.style, backgroundColor: "lightgrey" };
+                    let color;
+                    switch (node.type) {
+                        case "systemNode":
+                            color = "#f9f7f3";
+                            break;
+                        case "modeNode":
+                            color = "#e2fdff";
+                            break;
+                        case "groupNode":
+                            color = "#bfd7ff";
+                            break;
+                        default:
+                            color = "788bff";
+                            break;
+                    }
+                    node.style = { ...node.style, backgroundColor: color };
                 }
 
                 return node;
@@ -294,10 +305,14 @@ const FlowChart = forwardRef((props, ref) => {
                 height: 30,
                 color: '#FF0072',
             },
+            style: {
+                strokeWidth: 2,
+                stroke: '#000000',
+            },
             data: {
                 label: "action (" + prevIdx + "->" + idx + ")"
             },
-            zIndex: 2
+            zIndex: 4
         }
         setEdges((eds) => addEdge(newEdge, eds))
     }, []);

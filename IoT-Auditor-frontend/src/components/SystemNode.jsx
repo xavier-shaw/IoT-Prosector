@@ -47,7 +47,7 @@ export default function SystemNode(props) {
             </NodeResizeControl>
             <Handle type="target" position={Position.Top} />
             {editable ?
-                <TextField label="State" value={systemName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
+                <TextField value={systemName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
                 <h3 onClick={() => setEditable(true)}>{systemName}</h3>
             }

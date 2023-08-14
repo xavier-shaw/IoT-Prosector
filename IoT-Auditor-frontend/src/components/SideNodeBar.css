@@ -19,7 +19,7 @@
     margin: 20px 10px;
     height: 80px;
     width: 160px;
-    border-color: #cfc098;
+    border-color: #f9f7f3;
 }
 
 .mode-node-div {
@@ -35,7 +35,7 @@
     margin: 20px 10px;
     height: 80px;
     width: 160px;
-    border-color: #bd938c;
+    border-color: #e2fdff;
 }
 
 .group-node-div {
@@ -51,7 +51,7 @@
     margin: 20px 10px;
     height: 80px;
     width: 160px;
-    border-color: #ec6681;
+    border-color: #bfd7ff;
 }
 
 .operation-node-div {
@@ -67,5 +67,5 @@
     margin: 20px 10px;
     height: 80px;
     width: 160px;
-    border-color: #6d8ee0;
+    border-color: #788bff;
 }

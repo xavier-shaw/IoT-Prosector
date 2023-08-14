@@ -17,7 +17,7 @@ export default function AnnotateNode(props) {
     <>
       <Handle type="target" position={Position.Top} />
       {editable ?
-        <TextField size='small' label="State" value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag' />
+        <TextField size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag' />
         :
         <h5 onClick={() => { setEditable(true) }}>{stateName}</h5>
       }

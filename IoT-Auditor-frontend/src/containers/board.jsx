@@ -220,6 +220,10 @@ export default function Board(props) {
                                     height: 30,
                                     color: '#FF0072',
                                 },
+                                style: {
+                                    strokeWidth: 2,
+                                    stroke: '#000000',
+                                },
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
                                 },
@@ -243,6 +247,10 @@ export default function Board(props) {
                                     width: 30,
                                     height: 30,
                                     color: '#FF0072',
+                                },
+                                style: {
+                                    strokeWidth: 2,
+                                    stroke: '#000000',
                                 },
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"

@@ -13,23 +13,23 @@
     left: 0px;
     right: 0px;
     overflow: hidden;
-    background-color: lightgrey;
+    background-color: whitesmoke;
     display: flex;
     flex-direction: column;
 }
 
 .top-side-div {
     width: 100%;
-    height: 5%;
+    height: 7%;
     display: flex;
     justify-content: space-evenly;
     align-items: center;
-    background-color: ghostwhite;
+    background-color: rgb(245, 218, 129);
 }
 
 .mid-side-div {
     width: 100%;
-    height: 95%;
+    height: 93%;
 }
 
 .annotation-top-side-div {

@@ -48,7 +48,7 @@ export default function ModeNode(props) {
             </NodeResizeControl>
             <Handle type="target" position={Position.Top} />
             {editable ?
-                <TextField label="State" value={modeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
+                <TextField value={modeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
                 <h4 onClick={() => { setEditable(true) }}>{modeName}</h4>
             }

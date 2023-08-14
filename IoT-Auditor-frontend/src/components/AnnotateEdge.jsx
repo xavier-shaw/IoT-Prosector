@@ -10,6 +10,7 @@ export default function AnnotateEdge(props) {
         targetY,
         targetPosition, 
         markerEnd,
+        style,
         id, data } = props;
     const l = data.label;
     let [transitionName, setTransitionName] = useState(l);
@@ -39,23 +40,24 @@ export default function AnnotateEdge(props) {
 
     return (
         <>
-            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd}/>
+            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style}/>
             <EdgeLabelRenderer>
                 <div
                     id={id + "_label"}
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX + (targetX - labelX) / 2}px,${labelY + (targetY - labelY) / 2}px)`,
-                        fontSize: 10,
+                        fontSize: 14,
+                        fontWeight: 'bold',
                         pointerEvents: 'all',
-                        backgroundColor: "rgba(0, 0, 0, 0.08)",
+                        backgroundColor: "#f4a261",
                         borderRadius: 10,
                         zIndex: 4
                     }}
                     className="nodrag nopan"
                 >
                     {editable ?
-                        <TextField size='small' value={transitionName} onChange={handleTextChange} onBlur={handleTextBlur} autoFocus/>
+                        <TextField style={{borderColor: 'black'}} size='small' value={transitionName} onChange={handleTextChange} onBlur={handleTextBlur} autoFocus/>
                         :
                         <Chip label={transitionName} onClick={handleChipClick} />}
                 </div>
