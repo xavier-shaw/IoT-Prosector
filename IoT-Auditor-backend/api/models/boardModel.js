@@ -16,6 +16,10 @@ var BoardSchema = new Schema({
   data: {
     type: String,
     default: '{}',
+  },
+  chart: {
+    type: String,
+    default: '{}'
   }
 });
 

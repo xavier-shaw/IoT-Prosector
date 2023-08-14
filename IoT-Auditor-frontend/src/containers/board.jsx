@@ -23,12 +23,8 @@ export default function Board(props) {
         "Click a node or edge to annotate, then confirm the annotation.",
         "Click button to begin your verification."
     ]
-    const [states, setStates] = useState([]);
-    const [totalStates, setTotalStates] = useState([]);
-    const [transitions, setTransitions] = useState([]);
     const [isSensing, setIsSensing] = useState(-1);
     const nodeChartRef = useRef(null);
-    const ref = useRef({});
 
     useEffect(() => {
         axios
@@ -36,9 +32,9 @@ export default function Board(props) {
             .then((resp) => {
                 let board_data = resp.data[0];
                 board_data.data = JSON.parse(board_data.data);
+                board_data.chart = JSON.parse(board_data.chart);
                 console.log("board data", board_data);
                 setBoard(board_data);
-                getTotalStates(board_data.title);
                 axios
                     .get(window.BACKEND_ADDRESS + "/shared/update/" + board_data.title)
                     .then((resp) => {
@@ -48,58 +44,6 @@ export default function Board(props) {
         return () => {
         }
     }, [params.boardId]);
-
-    useEffect(() => {
-        if (board.hasOwnProperty("data")) {
-            if (board.data.hasOwnProperty("statesDict")) {
-                let states = [];
-                for (const [idx, state] of Object.entries(board.data.statesDict)) {
-                    states.push(state);
-                };
-                setStates(states);
-            };
-
-            if (board.data.hasOwnProperty("transitionsDict")) {
-                let transitions = [];
-                for (const [idx, transition] of Object.entries(board.data.transitionsDict)) {
-                    transitions.push(transition);
-                };
-                setTransitions(transitions);
-            };
-        }
-    }, [board]);
-
-    useEffect(() => {
-        let totalStatesCpy = cloneDeep(totalStates);
-        for (const s of states) {
-            for (const state of totalStatesCpy) {
-                if (s.id === state.id) {
-                    state.data.label = s.data.label;
-                }
-            }
-        };
-        setTotalStates(totalStatesCpy);
-    }, [states])
-
-    const getTotalStates = (title) => {
-        axios.
-            get(window.BACKEND_ADDRESS + "/states/" + title)
-            .then((resp) => {
-                let iotStates = resp.data;
-                let totalStates = [];
-
-                for (const iotState of iotStates) {
-                    // record this state's information
-                    totalStates.push({
-                        id: "node_" + iotState.idx,
-                        time: iotState.time,
-                        data: { label: "State " + iotState.idx }
-                    });
-                }
-
-                setTotalStates(totalStates);
-            })
-    };
 
     const handleClickNext = () => {
         if (step === 0) {
@@ -122,49 +66,61 @@ export default function Board(props) {
     };
 
     const deletePrevHightlight = (prevStateIdx, curStateIdx) => {
-        let prevStateNode = document.getElementById("node_" + curStateIdx);
-        prevStateNode.style.backgroundColor = "white";
-        let prevTransitionLabel = document.getElementById("edge_" + prevStateIdx + "-" + curStateIdx + "_label");
-        prevTransitionLabel.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
+        let boardChart = board.chart;
+        boardChart.nodes = boardChart.nodes.map((node) => {
+            if (node.id === "node_" + curStateIdx) {
+                node.style = { ...node.style, backgroundColor: "lightgrey" };
+                let prevTransitionLabel = document.getElementById("edge_" + prevStateIdx + "-" + curStateIdx + "_label");
+                prevTransitionLabel.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
+            };
+
+            return node;
+        });
+
+        setBoard((prevBoard) => ({ ...prevBoard, chart: boardChart }));
     };
 
     const addNewHighlight = (curStateIdx, nextStateIdx) => {
-        let nextStateNode = document.getElementById("node_" + nextStateIdx);
-        let nextTransitionEdge = document.getElementById("edge_" + curStateIdx + "-" + nextStateIdx + "_label");
-        nextStateNode.style.backgroundColor = "skyblue";
-        nextTransitionEdge.style.backgroundColor = "skyblue";
+        let boardChart = board.chart;
+        boardChart.nodes = boardChart.nodes.map((node) => {
+            if (node.id === "node_" + nextStateIdx) {
+                node.style = { ...node.style, backgroundColor: "skyblue" };
+                let nextTransitionEdge = document.getElementById("edge_" + curStateIdx + "-" + nextStateIdx + "_label");
+                nextTransitionEdge.style.backgroundColor = "skyblue";
+            };
+
+            return node;
+        });
+
+        setBoard((prevBoard) => ({ ...prevBoard, chart: boardChart }));
     };
 
     const onSave = () => {
-        updateAnnotation();
         let boardCpy = cloneDeep(board);
         let boardData = boardCpy.data;
+        let boardChart = nodeChartRef.current.updateAnnotation();
+        boardCpy.chart = boardChart;
         let statesDict = boardData.hasOwnProperty("statesDict") ? boardData.statesDict : {};
         let transitionsDict = boardData.hasOwnProperty("transitionsDict") ? boardData.transitionsDict : {};
-        for (const state of states) {
+        for (const state of boardChart.nodes) {
             let state_id = state["id"];
             statesDict[state_id] = state;
         };
-
-        for (const transition of transitions) {
+        for (const transition of boardChart.edges) {
             let transition_id = transition["id"];
             transitionsDict[transition_id] = transition;
         };
-
         boardData.statesDict = statesDict;
         boardData.transitionsDict = transitionsDict;
-        setBoard((prevBoard) => ({ ...prevBoard, data: boardData }));
+        setBoard((prevBoard) => ({ ...prevBoard, data: boardData, chart: boardChart }));
         console.log("update board data", boardCpy);
         boardCpy["data"] = JSON.stringify(boardData);
+        boardCpy["chart"] = JSON.stringify(boardChart);
         axios
             .post(window.BACKEND_ADDRESS + "/boards/saveBoard", { boardId: board._id, updates: boardCpy })
             .then((resp) => {
                 console.log("update board", resp.data);
             });
-    };
-
-    const updateAnnotation = () => {
-        nodeChartRef.current.updateAnnotation();
     };
 
     const handleClickAnnotate = () => {
@@ -176,7 +132,6 @@ export default function Board(props) {
                     clearInterval(isSensing);
                     setIsSensing(-1);
                 });
-            updateAnnotation();
         }
         else {
             axios
@@ -221,20 +176,13 @@ export default function Board(props) {
                 console.log("iot states", resp.data);
                 let iotStates = resp.data;
                 let boardData = board.data;
-                let states = board.data.hasOwnProperty("statesDict") ? board.data.statesDict : {};
-                let transitions = board.data.hasOwnProperty("transitionsDict") ? board.data.transitionsDict : {};
-                let totalStates = [];
+                let boardChart = board.chart;
+                let statesDict = board.data.hasOwnProperty("statesDict") ? board.data.statesDict : {};
+                let transitionsDict = board.data.hasOwnProperty("transitionsDict") ? board.data.transitionsDict : {};
 
                 for (const iotState of iotStates) {
-                    // record this state's information
-                    totalStates.push({
-                        id: "node_" + iotState.idx,
-                        time: iotState.time,
-                        data: { label: "State " + iotState.idx }
-                    });
-
                     // if it is a new state => create a new node for this state
-                    if (!states.hasOwnProperty("node_" + iotState.idx)) {
+                    if (!statesDict.hasOwnProperty("node_" + iotState.idx)) {
                         let state = {
                             id: "node_" + iotState.idx,
                             type: "stateNode",
@@ -257,7 +205,8 @@ export default function Board(props) {
                             },
                             zIndex: 1003
                         };
-                        states[iotState.idx] = state;
+                        statesDict[iotState.idx] = state;
+                        boardChart.nodes.push(state);
 
                         if (iotState.prev_idx !== "-99") {
                             let transition = {
@@ -276,12 +225,13 @@ export default function Board(props) {
                                 },
                                 zIndex: 1003
                             };
-                            transitions[transition.id] = transition;
+                            transitionsDict[transition.id] = transition;
+                            boardChart.edges.push(transition);
                         }
                     }
                     //  if it is an existing state => just add an edge to the existing node of this state (but the time attribute is ignored in current method)
                     else {
-                        if (!transitions.hasOwnProperty("edge_" + iotState.prev_idx + "-" + iotState.idx)) {
+                        if (!transitionsDict.hasOwnProperty("edge_" + iotState.prev_idx + "-" + iotState.idx)) {
                             let transition = {
                                 // current edge just means that there is a transition between, but not encode the temporal information (e.g. it's second time been here)
                                 id: "edge_" + iotState.prev_idx + "-" + iotState.idx,
@@ -299,15 +249,15 @@ export default function Board(props) {
                                 },
                                 zIndex: 1003
                             }
-                            transitions[transition.id] = transition;
+                            transitionsDict[transition.id] = transition;
+                            boardChart.edges.push(transition);
                         }
                     }
                 };
 
-                boardData.statesDict = states;
-                boardData.transitionsDict = transitions;
-                setBoard((prevBoard) => ({ ...prevBoard, data: boardData }));
-                setTotalStates(totalStates);
+                boardData.statesDict = statesDict;
+                boardData.transitionsDict = transitionsDict;
+                setBoard((prevBoard) => ({ ...prevBoard, data: boardData, chart: boardChart }));
             })
     };
 
@@ -319,11 +269,12 @@ export default function Board(props) {
                 console.log("now iot state", curState);
                 if (curState.length > 0) {
                     // Hint for User => current stage and current transition
-                    let prevStateIdx = curState.length >= 3 ? curState[curState.length - 3].state : "-1";
                     let curStateIdx = curState.length >= 2 ? curState[curState.length - 2].state : "-1";
                     let nextStateIdx = curState[curState.length - 1].state;
                     addNewHighlight(curStateIdx, nextStateIdx);
-                    deletePrevHightlight(prevStateIdx, curStateIdx);
+                    setTimeout(() => {
+                        deletePrevHightlight(curStateIdx, nextStateIdx);
+                    }, 900);
                 }
             })
     };
@@ -352,12 +303,12 @@ export default function Board(props) {
                 </div>
                 <div className="mid-side-div">
                     {step === 0 &&
-                        <NodeChart ref={nodeChartRef} step={step} states={states} setStates={setStates} transitions={transitions} setTransitions={setTransitions} />
+                        <NodeChart chart={board.chart} ref={nodeChartRef} step={step} />
                     }
                     {step === 1 &&
                         <div style={{ width: "100%", height: "100%" }}>
                             <div className="annotation-top-side-div">
-                                <NodeChart ref={nodeChartRef} step={step} states={states} setStates={setStates} transitions={transitions} setTransitions={setTransitions} />
+                                <NodeChart chart={board.chart} ref={nodeChartRef} step={step} />
                             </div>
                             <div className="annotation-bottom-side-div">
                                 {/* <TimelineChart totalStates={totalStates} /> */}

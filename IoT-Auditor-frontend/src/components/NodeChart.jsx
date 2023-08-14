@@ -9,6 +9,7 @@ import ExploreEdge from "./ExploreEdge";
 import AnnotateEdge from "./AnnotateEdge";
 import SystemNode from "./SystemNode";
 import ModeNode from "./ModeNode";
+import { v4 as uuidv4} from "uuid";
 
 const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
 
@@ -31,7 +32,7 @@ const getLayoutedElements = (nodes, edges, options) => {
 };
 
 const NodeChart = forwardRef((props, ref) => {
-    let { step, states, setStates, transitions, setTransitions } = props;
+    let { chart, step } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -46,24 +47,20 @@ const NodeChart = forwardRef((props, ref) => {
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
 
     useEffect(() => {
-        console.log("states", states);
-        setNodes(states);
-    }, [states]);
-
-    useEffect(() => {
-        console.log("transitions", transitions);
-        setEdges(transitions);
-    }, [transitions]);
+        if (chart) {
+            console.log("flow chart", chart);
+            setNodes(chart.nodes || []);
+            setEdges(chart.edges || []);   
+        }
+    }, [chart]);
 
     useImperativeHandle(ref, () => ({
         updateAnnotation
     }))
 
     const updateAnnotation = () => {
-        setStates(nodes);
-        setTransitions(edges);
         const flowObj = reactFlowInstance.toObject();
-        console.log("flow obj", flowObj)
+        return flowObj;
     };
 
     const onLayout = useCallback(() => {
@@ -74,8 +71,7 @@ const NodeChart = forwardRef((props, ref) => {
         [nodes, edges]
     );
 
-    let id = 0;
-    const getId = () => `dndnode_${id++}`;
+    
     const addNewNode = (position, type) => {
         let zIndex = 0;
         let nodeStyle = {};
@@ -123,7 +119,7 @@ const NodeChart = forwardRef((props, ref) => {
         };
 
         const newNode = {
-            id: getId(),
+            id: uuidv4(),
             type: type,
             position: position,
             positionAbsolute: position,
