@@ -15,13 +15,13 @@ export default function AnnotateNode(props) {
 
   return (
     <>
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={Position.Top} />
       {editable ?
         <TextField size='small' label="State" value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag' />
         :
         <h5 onClick={() => { setEditable(true) }}>{stateName}</h5>
       }
-      <Handle type="source" position={Position.Right} />
+      <Handle type="source" position={Position.Bottom} />
     </>
   );
 }

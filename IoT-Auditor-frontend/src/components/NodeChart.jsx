@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import ReactFlow, { Background, Controls, useEdgesState, useNodesState, applyNodeChanges, applyEdgeChanges, Panel, useReactFlow, ReactFlowProvider } from 'reactflow';
+import ReactFlow, { Background, Controls, useEdgesState, useNodesState, applyNodeChanges, applyEdgeChanges, Panel, useReactFlow, ReactFlowProvider, addEdge, getIncomers, getOutgoers, getConnectedEdges } from 'reactflow';
 import Dagre from 'dagre';
 import 'reactflow/dist/style.css';
 import { cloneDeep } from 'lodash';
@@ -9,7 +9,9 @@ import ExploreEdge from "./ExploreEdge";
 import AnnotateEdge from "./AnnotateEdge";
 import SystemNode from "./SystemNode";
 import ModeNode from "./ModeNode";
+import { MarkerType } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
+import GroupNode from "./GroupNode";
 
 const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
 
@@ -50,8 +52,8 @@ const FlowChart = forwardRef((props, ref) => {
     const dragRef = useRef(null);
     // target is the node that the node is dragged over
     const [target, setTarget] = useState(null);
-    const nodeTypes_explore = useMemo(() => ({ stateNode: ExploreNode, systemNode: SystemNode, modeNode: ModeNode }), []);
-    const nodeTypes_annotate = useMemo(() => ({ stateNode: AnnotateNode, systemNode: SystemNode, modeNode: ModeNode }), []);
+    const nodeTypes_explore = useMemo(() => ({ stateNode: ExploreNode, systemNode: SystemNode, modeNode: ModeNode, groupNode: GroupNode }), []);
+    const nodeTypes_annotate = useMemo(() => ({ stateNode: AnnotateNode, systemNode: SystemNode, modeNode: ModeNode, groupNode: GroupNode }), []);
     const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
 
@@ -60,7 +62,7 @@ const FlowChart = forwardRef((props, ref) => {
             console.log("flow chart", board.chart);
             setNodes([...board.chart.nodes]);
             setEdges([...board.chart.edges]);
-            setViewport({...board.chart.viewport});
+            setViewport({ ...board.chart.viewport });
         }
     }, [board]);
 
@@ -84,6 +86,7 @@ const FlowChart = forwardRef((props, ref) => {
     const addNewNode = (position, type) => {
         let zIndex = 0;
         let nodeStyle = {};
+        let nodeData = { label: `${type} node` };
         if (type === "systemNode") {
             zIndex = 0;
             nodeStyle = {
@@ -101,7 +104,7 @@ const FlowChart = forwardRef((props, ref) => {
             zIndex = 1;
             nodeStyle = {
                 width: "400px",
-                height: "200px",
+                height: "250px",
                 borderWidth: "3px",
                 borderStyle: "solid",
                 borderColor: "#bd938c",
@@ -110,8 +113,22 @@ const FlowChart = forwardRef((props, ref) => {
                 backgroundColor: "lightgrey",
             }
         }
-        else {
+        else if (type === "groupNode") {
             zIndex = 2;
+            nodeData["subNodes"] = [];
+            nodeStyle = {
+                width: "250px",
+                height: "150px",
+                borderWidth: "3px",
+                borderStyle: "solid",
+                borderColor: "#ec6681",
+                padding: "10px",
+                borderRadius: "10px",
+                backgroundColor: "lightgrey",
+            }
+        }
+        else {
+            zIndex = 3;
             nodeStyle = {
                 width: "150px",
                 height: "80px",
@@ -128,11 +145,11 @@ const FlowChart = forwardRef((props, ref) => {
         };
 
         const newNode = {
-            id: uuidv4(),
+            id: "node_" + uuidv4(),
             type: type,
             position: position,
             positionAbsolute: position,
-            data: { label: `${type} node` },
+            data: nodeData,
             style: nodeStyle,
             zIndex: zIndex
         };
@@ -199,18 +216,52 @@ const FlowChart = forwardRef((props, ref) => {
     };
 
     const onNodeDragStop = (evt, node) => {
-        setNodes((nodes) =>
-            nodes.map((n) => {
-                if (n.id === node.id && target) {
-                    n.parentNode = target.id;
-                    n.extent = "parent";
-                    n.position = { x: node.positionAbsolute.x - target.positionAbsolute.x, y: node.positionAbsolute.y - target.positionAbsolute.y }
+        let newNodes = [...nodes];
+        let allEdges = [...edges];
+        if (target?.type === "groupNode") {
+            let nodeIdx = node.id.split("_")[1];
+            newNodes = newNodes.filter((n) => n.id !== node.id && n.id !== target.id);
+            target.data.subNodes = [...target.data.subNodes, node];
+            const incomers = getIncomers(node, nodes, edges);
+            const outgoers = getOutgoers(node, nodes, edges);
+            let connectedEdges = getConnectedEdges([node], edges);
+            const remainEdges = allEdges.filter((edge) => !connectedEdges.includes(edge));
+            connectedEdges = connectedEdges.map((edge) => {
+                if (edge.source === node.id) {
+                    let targetIdx = edge.target.split("_")[1];
+                    edge.source = target.id;
+                    edge.id = "edge_" + nodeIdx + "-" + targetIdx;
                 }
-
+                else {
+                    let sourceIdx = edge.source.split("_")[1];
+                    edge.target = target.id;
+                    edge.id = "edge_" + sourceIdx + "-" + nodeIdx;
+                };
+                return edge;
+            });
+            newNodes.push(target);
+            console.log(target);
+            setNodes(newNodes);
+            setEdges([...remainEdges, ...connectedEdges]);
+        }
+        else {
+            newNodes.map((n) => {
+                if (n.id === node.id) {
+                    if (target) {
+                        n.parentNode = target.id;
+                        // n.extent = "parent";
+                        n.position = { x: node.positionAbsolute.x - target.positionAbsolute.x, y: node.positionAbsolute.y - target.positionAbsolute.y }
+                    }
+                    else {
+                        n.parentNode = "";
+                        n.position = { x: node.positionAbsolute.x, y: node.positionAbsolute.y };
+                    }
+                }
                 return n;
             })
-        );
+        }
 
+        setNodes(newNodes);
         setTarget(null);
         dragRef.current = null;
     };
@@ -228,6 +279,28 @@ const FlowChart = forwardRef((props, ref) => {
             })
         );
     }, [target]);
+
+    const onConnect = useCallback((params) => {
+        let prevIdx = params.source.split("_")[1];
+        let idx = params.target.split("_")[1];
+        let newEdge = {
+            id: "edge_" + prevIdx + "-" + idx,
+            type: "transitionEdge",
+            source: params.source,
+            target: params.target,
+            markerEnd: {
+                type: MarkerType.ArrowClosed,
+                width: 30,
+                height: 30,
+                color: '#FF0072',
+            },
+            data: {
+                label: "action (" + prevIdx + "->" + idx + ")"
+            },
+            zIndex: 2
+        }
+        setEdges((eds) => addEdge(newEdge, eds))
+    }, []);
 
     return (
         <div style={{ width: '100%', height: '100%' }} ref={reactFlowWrapper}>
@@ -261,6 +334,7 @@ const FlowChart = forwardRef((props, ref) => {
                     onNodeDragStart={onNodeDragStart}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
+                    onConnect={onConnect}
                     fitView
                 >
                     <Panel position="top-right">

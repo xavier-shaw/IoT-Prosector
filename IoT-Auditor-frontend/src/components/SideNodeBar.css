@@ -38,6 +38,22 @@
     border-color: #bd938c;
 }
 
+.group-node-div {
+    background: white;
+    border-left: 1rem solid #8a8a8a;
+    border-radius: 0.5rem;
+    box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    font-family: Helvetica;
+    font-weight: bold;
+    padding: 10px;
+    margin: 20px 10px;
+    height: 80px;
+    width: 160px;
+    border-color: #ec6681;
+}
+
 .operation-node-div {
     background: white;
     border-left: 1rem solid #8a8a8a;

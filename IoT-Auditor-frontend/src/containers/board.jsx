@@ -203,7 +203,7 @@ export default function Board(props) {
                                 justifyContent: "center",
                                 alignItems: "center"
                             },
-                            zIndex: 2
+                            zIndex: 3
                         };
                         statesDict[state.id] = state;
                         boardChart.nodes.push(state);
@@ -223,7 +223,7 @@ export default function Board(props) {
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
                                 },
-                                zIndex: 2
+                                zIndex: 4
                             };
                             transitionsDict[transition.id] = transition;
                             boardChart.edges.push(transition);
@@ -247,7 +247,7 @@ export default function Board(props) {
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
                                 },
-                                zIndex: 2
+                                zIndex: 4
                             }
                             transitionsDict[transition.id] = transition;
                             boardChart.edges.push(transition);

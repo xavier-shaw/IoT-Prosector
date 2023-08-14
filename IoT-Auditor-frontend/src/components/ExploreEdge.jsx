@@ -34,7 +34,7 @@ export default function ExploreEdge(props) {
                         pointerEvents: 'all',
                         backgroundColor: "rgba(0, 0, 0, 0.08)",
                         borderRadius: 10,
-                        zIndex: 2
+                        zIndex: 4
                     }}
                     className="nodrag nopan"
                 >
