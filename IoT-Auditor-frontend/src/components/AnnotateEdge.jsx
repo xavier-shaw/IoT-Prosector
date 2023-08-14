@@ -1,7 +1,6 @@
 import { Chip, TextField } from '@mui/material';
-import zIndex from '@mui/material/styles/zIndex';
 import React, { useState } from 'react';
-import { getBezierPath, EdgeLabelRenderer, BaseEdge } from 'reactflow';
+import { getBezierPath, EdgeLabelRenderer, BaseEdge, getSmoothStepPath } from 'reactflow';
 
 export default function AnnotateEdge(props) {
     let { sourceX,
@@ -46,12 +45,12 @@ export default function AnnotateEdge(props) {
                     id={id + "_label"}
                     style={{
                         position: 'absolute',
-                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+                        transform: `translate(-50%, -50%) translate(${labelX + (targetX - labelX) / 2}px,${labelY + (targetY - labelY) / 2}px)`,
                         fontSize: 10,
                         pointerEvents: 'all',
                         backgroundColor: "rgba(0, 0, 0, 0.08)",
                         borderRadius: 10,
-                        zIndex: 1003
+                        zIndex: 2
                     }}
                     className="nodrag nopan"
                 >

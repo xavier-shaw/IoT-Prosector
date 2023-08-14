@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { Handle, Position } from 'reactflow';
-import { TextField } from '@mui/material';
 
 export default function ExploreNode(props) {
   let { data } = props;

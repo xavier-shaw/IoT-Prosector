@@ -29,10 +29,12 @@ export default function ExploreEdge(props) {
                     id={id + "_label"}
                     style={{
                         position: 'absolute',
-                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+                        transform: `translate(-50%, -50%) translate(${labelX + (targetX - labelX) / 2}px,${labelY + (targetY - labelY) / 2}px)`,
                         fontSize: 10,
                         pointerEvents: 'all',
-                        zIndex: 1003
+                        backgroundColor: "rgba(0, 0, 0, 0.08)",
+                        borderRadius: 10,
+                        zIndex: 2
                     }}
                     className="nodrag nopan"
                 >

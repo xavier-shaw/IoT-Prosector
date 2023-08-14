@@ -19,7 +19,7 @@ var BoardSchema = new Schema({
   },
   chart: {
     type: String,
-    default: '{}'
+    default: '{"nodes": [], "edges": []}'
   }
 });
 

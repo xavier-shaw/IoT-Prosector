@@ -187,8 +187,8 @@ export default function Board(props) {
                             id: "node_" + iotState.idx,
                             type: "stateNode",
                             time: iotState.time,
-                            position: { x: 50 + 300 * (parseInt(iotState.idx)), y: 100 },
-                            positionAbsolute: { x: 50 + 300 * (parseInt(iotState.idx)), y: 100 },
+                            position: { x: 50 + 400 * (parseInt(iotState.idx) + 1), y: 100 },
+                            positionAbsolute: { x: 50 + 400 * (parseInt(iotState.idx) + 1), y: 100 },
                             data: { label: "State " + iotState.idx },
                             style: {
                                 width: "150px",
@@ -203,9 +203,9 @@ export default function Board(props) {
                                 justifyContent: "center",
                                 alignItems: "center"
                             },
-                            zIndex: 1003
+                            zIndex: 2
                         };
-                        statesDict[iotState.idx] = state;
+                        statesDict[state.id] = state;
                         boardChart.nodes.push(state);
 
                         if (iotState.prev_idx !== "-99") {
@@ -216,14 +216,14 @@ export default function Board(props) {
                                 target: "node_" + iotState.idx,
                                 markerEnd: {
                                     type: MarkerType.ArrowClosed,
-                                    width: 20,
-                                    height: 20,
+                                    width: 30,
+                                    height: 30,
                                     color: '#FF0072',
                                 },
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
                                 },
-                                zIndex: 1003
+                                zIndex: 2
                             };
                             transitionsDict[transition.id] = transition;
                             boardChart.edges.push(transition);
@@ -240,14 +240,14 @@ export default function Board(props) {
                                 target: "node_" + iotState.idx,
                                 markerEnd: {
                                     type: MarkerType.ArrowClosed,
-                                    width: 20,
-                                    height: 20,
+                                    width: 30,
+                                    height: 30,
                                     color: '#FF0072',
                                 },
                                 data: {
                                     label: "action (" + iotState.prev_idx + "->" + iotState.idx + ")"
                                 },
-                                zIndex: 1003
+                                zIndex: 2
                             }
                             transitionsDict[transition.id] = transition;
                             boardChart.edges.push(transition);
@@ -303,12 +303,12 @@ export default function Board(props) {
                 </div>
                 <div className="mid-side-div">
                     {step === 0 &&
-                        <NodeChart chart={board.chart} ref={nodeChartRef} step={step} />
+                        <NodeChart board={board} ref={nodeChartRef} step={step} />
                     }
                     {step === 1 &&
                         <div style={{ width: "100%", height: "100%" }}>
                             <div className="annotation-top-side-div">
-                                <NodeChart chart={board.chart} ref={nodeChartRef} step={step} />
+                                <NodeChart board={board} ref={nodeChartRef} step={step} />
                             </div>
                             <div className="annotation-bottom-side-div">
                                 {/* <TimelineChart totalStates={totalStates} /> */}

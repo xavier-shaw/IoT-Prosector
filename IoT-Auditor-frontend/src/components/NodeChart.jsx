@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import ReactFlow, { Background, Controls, useEdgesState, useNodesState, applyNodeChanges, applyEdgeChanges, Panel, useReactFlow } from 'reactflow';
+import ReactFlow, { Background, Controls, useEdgesState, useNodesState, applyNodeChanges, applyEdgeChanges, Panel, useReactFlow, ReactFlowProvider } from 'reactflow';
 import Dagre from 'dagre';
 import 'reactflow/dist/style.css';
 import { cloneDeep } from 'lodash';
@@ -9,7 +9,7 @@ import ExploreEdge from "./ExploreEdge";
 import AnnotateEdge from "./AnnotateEdge";
 import SystemNode from "./SystemNode";
 import ModeNode from "./ModeNode";
-import { v4 as uuidv4} from "uuid";
+import { v4 as uuidv4 } from "uuid";
 
 const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
 
@@ -32,11 +32,20 @@ const getLayoutedElements = (nodes, edges, options) => {
 };
 
 const NodeChart = forwardRef((props, ref) => {
-    let { chart, step } = props;
+    return (
+        <ReactFlowProvider>
+            <FlowChart {...props} ref={ref} />
+        </ReactFlowProvider>
+    )
+})
+
+const FlowChart = forwardRef((props, ref) => {
+    let { board, step } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
+    const { setViewport } = useReactFlow();
     // this ref stores the current dragged node
     const dragRef = useRef(null);
     // target is the node that the node is dragged over
@@ -47,12 +56,13 @@ const NodeChart = forwardRef((props, ref) => {
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
 
     useEffect(() => {
-        if (chart) {
-            console.log("flow chart", chart);
-            setNodes(chart.nodes || []);
-            setEdges(chart.edges || []);   
+        if (board.hasOwnProperty("chart")) {
+            console.log("flow chart", board.chart);
+            setNodes([...board.chart.nodes]);
+            setEdges([...board.chart.edges]);
+            setViewport({...board.chart.viewport});
         }
-    }, [chart]);
+    }, [board]);
 
     useImperativeHandle(ref, () => ({
         updateAnnotation
@@ -71,12 +81,11 @@ const NodeChart = forwardRef((props, ref) => {
         [nodes, edges]
     );
 
-    
     const addNewNode = (position, type) => {
         let zIndex = 0;
         let nodeStyle = {};
         if (type === "systemNode") {
-            zIndex = 1001;
+            zIndex = 0;
             nodeStyle = {
                 width: "800px",
                 height: "400px",
@@ -89,7 +98,7 @@ const NodeChart = forwardRef((props, ref) => {
             }
         }
         else if (type === "modeNode") {
-            zIndex = 1002;
+            zIndex = 1;
             nodeStyle = {
                 width: "400px",
                 height: "200px",
@@ -102,7 +111,7 @@ const NodeChart = forwardRef((props, ref) => {
             }
         }
         else {
-            zIndex = 1003;
+            zIndex = 2;
             nodeStyle = {
                 width: "150px",
                 height: "80px",
@@ -228,6 +237,7 @@ const NodeChart = forwardRef((props, ref) => {
                     edgeTypes={edgeTypes_explore}
                     nodes={nodes}
                     edges={edges}
+                    onInit={setReactFlowInstance}
                     fitView
                 >
                     <Panel position="top-right">
@@ -263,5 +273,6 @@ const NodeChart = forwardRef((props, ref) => {
         </div>
     )
 });
+
 
 export default NodeChart;
