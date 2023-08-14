@@ -19,7 +19,7 @@ export default function AnnotateNode(props) {
       {editable ?
         <TextField size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag' />
         :
-        <h5 onClick={() => { setEditable(true) }}>{stateName}</h5>
+        <h5 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{stateName}</h5>
       }
       <Handle type="source" position={Position.Bottom} />
     </>

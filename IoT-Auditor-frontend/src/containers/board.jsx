@@ -69,9 +69,9 @@ export default function Board(props) {
         let boardChart = board.chart;
         boardChart.nodes = boardChart.nodes.map((node) => {
             if (node.id === "node_" + curStateIdx) {
-                node.style = { ...node.style, backgroundColor: "lightgrey" };
+                node.style = { ...node.style, backgroundColor: "#788bff" };
                 let prevTransitionLabel = document.getElementById("edge_" + prevStateIdx + "-" + curStateIdx + "_label");
-                prevTransitionLabel.style.backgroundColor = "rgba(0, 0, 0, 0.08)";
+                prevTransitionLabel.style.backgroundColor = "#f4a261";
             };
 
             return node;
@@ -195,10 +195,9 @@ export default function Board(props) {
                                 height: "80px",
                                 borderWidth: "1px",
                                 borderStyle: "solid",
-                                borderColor: "#6d8ee0",
                                 padding: "10px",
                                 borderRadius: "10px",
-                                backgroundColor: "lightgrey",
+                                backgroundColor: "#788bff",
                                 display: "flex",
                                 justifyContent: "center",
                                 alignItems: "center"

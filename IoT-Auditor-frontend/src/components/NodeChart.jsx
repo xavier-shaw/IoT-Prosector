@@ -114,6 +114,7 @@ const FlowChart = forwardRef((props, ref) => {
         else if (type === "groupNode") {
             zIndex = 2;
             nodeData["subNodes"] = [];
+            nodeData["nodeEdgeDict"] = {};
             nodeStyle = {
                 width: "250px",
                 height: "150px",
@@ -218,9 +219,10 @@ const FlowChart = forwardRef((props, ref) => {
             let nodeIdx = node.id.split("_")[1];
             newNodes = newNodes.filter((n) => n.id !== node.id && n.id !== target.id);
             target.data.subNodes = [...target.data.subNodes, node];
-            const incomers = getIncomers(node, nodes, edges);
-            const outgoers = getOutgoers(node, nodes, edges);
+            // const incomers = getIncomers(node, nodes, edges);
+            // const outgoers = getOutgoers(node, nodes, edges);
             let connectedEdges = getConnectedEdges([node], edges);
+            target.data.nodeEdgeDict = {...target.data.nodeEdgeDict, nodeIdx: connectedEdges};
             const remainEdges = allEdges.filter((edge) => !connectedEdges.includes(edge));
             connectedEdges = connectedEdges.map((edge) => {
                 if (edge.source === node.id) {
@@ -280,7 +282,7 @@ const FlowChart = forwardRef((props, ref) => {
                             color = "#bfd7ff";
                             break;
                         default:
-                            color = "788bff";
+                            color = "#788bff";
                             break;
                     }
                     node.style = { ...node.style, backgroundColor: color };

@@ -50,7 +50,7 @@ export default function ModeNode(props) {
             {editable ?
                 <TextField value={modeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
-                <h4 onClick={() => { setEditable(true) }}>{modeName}</h4>
+                <h4 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{modeName}</h4>
             }
             <Handle type="source" position={Position.Bottom} />
         </>

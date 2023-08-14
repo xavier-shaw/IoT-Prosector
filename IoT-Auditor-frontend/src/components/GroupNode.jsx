@@ -50,7 +50,7 @@ export default function GroupNode(props) {
             {editable ?
                 <TextField size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag' />
                 :
-                <h4 onClick={() => { setEditable(true) }}>{stateName}</h4>
+                <h4 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{stateName}</h4>
             }
             {(() => (data.subNodes.map((subNode) => (
                 <Chip style={{ backgroundColor: "#788bff", fontSize: "18px", margin: "2px" }} key={subNode.id} label={subNode.data.label} />

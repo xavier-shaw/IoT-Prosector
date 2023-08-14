@@ -49,7 +49,7 @@ export default function SystemNode(props) {
             {editable ?
                 <TextField value={systemName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
-                <h3 onClick={() => setEditable(true)}>{systemName}</h3>
+                <h3 style={{fontWeight: 'bold'}} onClick={() => setEditable(true)}>{systemName}</h3>
             }
             <Handle type="source" position={Position.Bottom} />
         </>

@@ -7,7 +7,7 @@ export default function ExploreNode(props) {
   return (
     <>
       <Handle type="target" position={Position.Top} />
-      <h5 className='nodrag'>{data.label}</h5>
+      <h5 style={{fontWeight: 'bold'}} className='nodrag'>{data.label}</h5>
       <Handle type="source" position={Position.Bottom} />
     </>
   );
