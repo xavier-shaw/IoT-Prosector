@@ -73,7 +73,7 @@ def explore():
             {"name": "device"})
         if sensing_variable["value"] == "exploration":
             print("start sensing at exploration stage!!!!!")
-            sensing(device_variable["value"])
+            sensing_mean(device_variable["value"])
 
 
 def predict():
@@ -142,7 +142,7 @@ async def start_sensing(device: str):
     global isSensing
     isSensing = True
     if loop_thread is None or not loop_thread.is_alive():
-        loop_thread = threading.Thread(target=sensing(device))
+        loop_thread = threading.Thread(target=sensing_mean(device))
         loop_thread.start()
         return {"message": "Sensing IoT device started: " + device}
     else:
@@ -238,6 +238,176 @@ def sensing(device):
     print("\n")
     start_time = time.time()
 
+    data_points_info = {}
+    data_point_idx = 0
+    state_clusters = []  # identified clusters
+    centroids = []  # center point of clusters
+    distance_threshold = 1.2  # threshold for outlier
+    previous_data_cluster_idx = -1  # the state of previous data
+    count_threshold = 2  # threshold for new cluster (times of continous outlier)
+    outlier_buffer = []  # a buffer array for potential new cluster
+    outlier_buffer_idx = []  # an array records the potential outliers' idx
+    scaler_x = StandardScaler()  # the scaler for normalization
+    new_state = True  # indicator for creating a new state
+
+    count = 0
+
+    # Create Default POWER_OFF state as the first state
+    new_state_info = {
+        "time": time.time() - start_time,
+        "device": device,
+        "idx": "-1",
+        "prev_idx": "-99"
+    }
+    create_state(new_state_info)
+
+# ======================= Read data from data stream ========================================
+    isSensing = True
+    first = True  # the first data always wrong
+    while (isSensing):
+        sensing_variable = app.database["sharedvariables"].find_one(
+            {"name": "sensing"})
+        if sensing_variable["value"] == "false":
+            print("stop sensing at exploration stage!!!!!")
+            isSensing = False
+            break
+
+        # networks = []
+        powers = []
+        emanations = []
+
+        q = multiprocessing.Queue()
+        # p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
+        p2 = multiprocessing.Process(
+            target=power_data.power_data, args=(q,))
+        p3 = multiprocessing.Process(
+            target=emanation_data.emanation_data, args=(q,))
+
+        # p1.start()
+        p2.start()
+        p3.start()
+        # p1.join()
+        p2.join()
+        p3.join()
+        # n = q.get()
+        p = q.get()
+        e = q.get()
+        # networks.append(n)
+        if len(p) > 0:
+            # skip the first data
+            if first:
+                first = False
+                continue
+            count += 1
+            print("data point count: " + str(count))
+            
+            features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
+                x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
+            # fea_network = [feature(network) for feature in features]
+            fea_power = [feature(p) for feature in features]
+            fea_emanation = [feature(e) for feature in features]
+            fea = np.array(fea_power + fea_emanation)
+            fea = fea.reshape(1, fea.shape[0])
+
+            # Clustering Workflow:
+            # 1. calculate distance between data point and clusters's center points
+            # 2. if distance larger than threshold, it is an "outlier":
+            #       (a) if cumulated outlier count larger than count threshold => create new cluster for cumulated outliers
+            #       (b) if cumulated outlier count less than count threshold => record the outlier in a buffer
+            # 3. if distance smaller than threshold:
+            #       (a) if the nearest cluster is the previous cluster => add data point to the nearest cluster
+            #       (b) if the nearest cluster is another cluster => a new threshold to judge if add to it or not? => just add to the nearest cluster
+            #    => recalculate the center point of the modified cluster
+            #    => clear the outlier buffer to confirm they're outliers
+
+            if len(centroids) == 0:  # if this is the first point
+                state_clusters.append([fea])
+                centroids.append(fea)
+                cluster_idx = len(state_clusters) - 1
+                new_state = True
+            else:
+                # calculate distance
+                closest_centroid_index, closest_distance = get_closest_centroid(
+                    fea, centroids)
+                print("new data point's closest distance: ", closest_distance)
+                print("now state: " + str(previous_data_cluster_idx))
+                # less than threshold
+                if closest_distance <= distance_threshold:
+                    print("smaller than threshold")
+                    # the nearest cluster is current state
+                    if closest_centroid_index == previous_data_cluster_idx:
+                        belonged_cluster_idx = closest_centroid_index
+                    # the nearest cluster is not current state
+                    else:
+                        belonged_cluster_idx = closest_centroid_index
+                        new_state = True
+                    state_clusters[belonged_cluster_idx].append(fea)
+                    # recalculate the center point
+                    centroids[belonged_cluster_idx] = calculate_centroid(
+                        state_clusters[belonged_cluster_idx])
+                    # empty the outlier buffer and its idx
+                    outlier_buffer = []
+                    outlier_buffer_idx = []
+                    cluster_idx = belonged_cluster_idx
+                    print("Next state is: " + str(belonged_cluster_idx))
+                # larger than threshold
+                else:
+                    print("larger than threshold")
+                    print("outlier buffer count: " + str(len(outlier_buffer) + 1))
+                    # add to outlier buffer
+                    outlier_buffer.append(fea)
+                    # number of outliers more than the threshold => create new cluster
+                    if len(outlier_buffer) >= count_threshold:
+                        # add the outlier buffer as a new cluster
+                        state_clusters.append(outlier_buffer)
+                        # calculate the center point of the new cluster
+                        centroids.append(calculate_centroid(outlier_buffer))
+                        new_state = True
+                        cluster_idx = len(state_clusters) - 1
+                        # update the outliers' state as this new cluster
+                        for outlier_idx in outlier_buffer_idx:
+                            data_points_info[outlier_idx]["state"] = str(
+                                cluster_idx)
+                        # empty the outlier buffer and its idx
+                        outlier_buffer = []
+                        outlier_buffer_idx = []
+                    # number of outliers less than the threshold
+                    else:
+                        # indicate this data point is an outlier
+                        cluster_idx = previous_data_cluster_idx
+                        # add the idx to the buffer so that its state can be updated later
+                        outlier_buffer_idx.append(data_point_idx)
+
+            data_point_info = {
+                "idx": str(data_point_idx),
+                "state": str(cluster_idx),
+                "data": fea.tolist(),
+                "time": time.time() - start_time,
+                "device": device
+            }
+            data_points_info[data_point_idx] = data_point_info
+            data_point_idx += 1
+
+            if new_state:
+                new_state_info = {
+                    "time": time.time() - start_time,
+                    "device": device,
+                    "idx": str(cluster_idx),
+                    "prev_idx": str(previous_data_cluster_idx)
+                }
+                create_state(new_state_info)
+                new_state = False
+                previous_data_cluster_idx = cluster_idx  # record the current state
+
+    # Store data in database
+    for data_point in data_points_info.values():
+        create_data(jsonable_encoder(data_point))
+
+
+def sensing_mean(device):
+    print("\n")
+    start_time = time.time()
+
     points_data = []
     data_points_info = {}
     data_point_idx = 0
@@ -265,6 +435,7 @@ def sensing(device):
 
 # ======================= Read data from data stream ========================================
     isSensing = True
+    first = True  # the first data always wrong
     while (isSensing):
         sensing_variable = app.database["sharedvariables"].find_one(
             {"name": "sensing"})
@@ -298,6 +469,9 @@ def sensing(device):
             e = q.get()
             # networks.append(n)
             if len(p) > 0:
+                if first:
+                    first = False
+                    continue
                 features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
                     x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
                 # fea_network = [feature(network) for feature in features]
