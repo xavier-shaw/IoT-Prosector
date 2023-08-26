@@ -1,16 +1,27 @@
 import serial
-def power_data(q):
+import time
+
+def power_data(q, start_time):
     power = []
-    with serial.Serial('/dev/ttyACM0', 9600, timeout=1) as ser:
-        for i in range(8):
-            line = ser.readline()
-            if len(line.decode().rstrip().split(',')[-1])>=1:
-               current = float(line.decode().rstrip().split(',')[-1])
-               if current<1:
-                   power.append(current)
-            #print(i)
+    timestamps = []
+    
+    ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
+
+    for i in range(8):
+        print("time 2: ", time.time() - start_time)
+        line = ser.readline()
+        print("line: ", line)
+        if line:
+            current = float(line.decode().rstrip())
+        #    if current<1:
+            power.append(current)
+            timestamps.append(time.time() - start_time)
+        #print(i)
+    
     q.put(power)
-    return(power)
+    q.put(timestamps)
+    
+    return(power, timestamps)
     """
     filename = 'file.csv'
     with open(filename, 'w') as f:

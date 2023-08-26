@@ -2,8 +2,9 @@ import scipy.signal as signal
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
+import time
 
-def getEmanations(filename):
+def getEmanations(filename, start_time):
     num_samples = 32768
     num_bands = 3 # for 6GHz spectrum
     num_sweeps = 1
@@ -31,13 +32,14 @@ def getEmanations(filename):
     n_sweeps = N_SWEEPS
     fs = F_S
 
-    n_samples_per_hop = len(data1)/(n_hops*n_sweeps);
+    n_samples_per_hop = len(data1)/(n_hops*n_sweeps)
 
     cut_start = np.floor(n_samples_per_hop*0.25)
     cut_stop = np.floor(n_samples_per_hop*0.75)-1
     cut_size = cut_stop - cut_start+1
 
     powers = []
+    timestamps = []
     for i in range(1, n_sweeps+1):
         for j in range(1, n_hops+1):
             curr_start = int((j-1)*cut_size*2)
@@ -50,7 +52,8 @@ def getEmanations(filename):
             with open('GH_' + str(j*200) + 'CF_index.pkl', 'rb') as index_f:
                 power_ix = np.load(index_f)
             powers.append(power[power_ix])
-    return np.concatenate(powers)
+            timestamps.append(time.time() - start_time)
+    return np.concatenate(powers), timestamps
 
 #         peaks, _ = signal.find_peaks(pwelpsd, prominence=0.0000001)
 #         fig, ax = plt.subplots()

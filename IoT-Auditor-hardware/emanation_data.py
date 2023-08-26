@@ -4,7 +4,7 @@ import subprocess
 import FFTpeaks
 import os 
 
-def emanation_data(q):
+def emanation_data(q, start_time):
     debug = False
     if debug:
         return 1
@@ -16,6 +16,7 @@ def emanation_data(q):
         full_path_2 = os.path.join(absolute_path, relative_path_2)
         subprocess.call(full_path_1, shell=True)
         ## rayray's emanation detection codes translated from matlab
-        fft_peaks =  FFTpeaks.getEmanations(full_path_2)
+        fft_peaks, timestamps =  FFTpeaks.getEmanations(full_path_2, start_time)
         q.put(fft_peaks)
-        return(fft_peaks)
+        q.put(timestamps)
+        return(fft_peaks, timestamps)

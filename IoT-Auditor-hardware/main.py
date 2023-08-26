@@ -17,9 +17,15 @@ import os
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from sklearn.metrics import confusion_matrix
+from scipy.optimize import linear_sum_assignment
+import seaborn as sns
 import matplotlib.pyplot as plt
 import json
 import threading
+import serial
+from paramiko import SSHClient
 
 config = dotenv_values(".env")
 username = quote_plus(config["NAME"])
@@ -27,9 +33,10 @@ password = quote_plus(config["PASSWORD"])
 cluster = config["CLUSTER"]
 uri = 'mongodb+srv://' + username + ':' + password + \
     '@' + cluster + '/?retryWrites=true&w=majority'
+pineapple_token = "eyJVc2VyIjoicm9vdCIsIkV4cGlyeSI6IjIwMjgtMDgtMjJUMDI6Mzc6NTUuMjk4NzgzMzAzWiIsIlNlcnZlcklkIjoiYTYyMTM3MzE3NTUyNDRlZSJ9.sbCLEXl3vWayXfd4zM2zgTthQnzEztZvWxNi_nejdvg="
+
 
 app = FastAPI()
-
 # ====================================== GLOBAL VARIABLES ==================================================
 listening = True
 explore_thread = None
@@ -44,23 +51,28 @@ def startup_db_client():
     print("Connected to the MongoDB database!")
     print(app.client)
     print(app.database)
-    global explore_thread, predict_thread
-    if explore_thread is None or not explore_thread.is_alive():
-        explore_thread = threading.Thread(target=explore)
-        explore_thread.daemon = True
-        explore_thread.start()
-    if predict_thread is None or not predict_thread.is_alive():
-        predict_thread = threading.Thread(target=predict)
-        predict_thread.daemon = True
-        predict_thread.start()
-
+    # global explore_thread, predict_thread
+    # if explore_thread is None or not explore_thread.is_alive():
+    #     explore_thread = threading.Thread(target=explore)
+    #     explore_thread.daemon = True
+    #     explore_thread.start()
+    # if predict_thread is None or not predict_thread.is_alive():
+    #     predict_thread = threading.Thread(target=predict)
+    #     predict_thread.daemon = True
+    #     predict_thread.start()
+    # print("ready to ssh")
+    # ssh = SSHClient()
+    # ssh.load_system_host_keys()
+    # ssh.connect(hostname="172.16.42.1", username="root", password="hak5pineapple")
+    # ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("tcpdump -i any -w filename.pcap tcp and host 172.16.42.205")
+    # print(ssh_stdout)
 
 @app.on_event("shutdown")
 def shutdown_db_client():
-    global explore_thread, predict_thread, listening
-    listening = False
-    explore_thread.join()
-    predict_thread.join()
+    # global explore_thread, predict_thread, listening
+    # listening = False
+    # explore_thread.join()
+    # predict_thread.join()
     app.client.close()
 
 
@@ -73,7 +85,7 @@ def explore():
             {"name": "device"})
         if sensing_variable["value"] == "exploration":
             print("start sensing at exploration stage!!!!!")
-            sensing_mean(device_variable["value"])
+            sensing(device_variable["value"])
 
 
 def predict():
@@ -106,47 +118,113 @@ async def get_states_data():
 
 @app.get("/get_data")
 async def get_data():
-    devices = ["listening keyword", "listening monitor speech",
-               "muted tap", "muted monitor speech"]
+    # devices = ["listening keyword", "listening monitor speech",
+    #            "muted tap", "muted monitor speech"]
+    # devices = ['Keyword Listening 08.15', 'Keyword Listening Casting 08.15', 'Command Listening 08.15', 'Command Listening Casting 08.15', 'Unmuted Playing Muted 08.15', 'Playing Vol Min 08.15', 'Playing Vol Mid 08.15', 'Playing Vol Max 08.15',
+    #            'Muted Base 08.15', 'Muted Base Casting 08.15', 'Muted Playing Muted 08.15', 'Muted Playing Vol Min 08.15', 'Muted Playing Vol Mid 08.15', 'Muted Playing Vol Max 08.15',
+    #            'Keyword Listening 08.16', 'Keyword Listening Max 08.16', 'Muted Base 08.16', 'Muted Base Max 08.16']
+    devices = ['Keyword Listening 08.15', 'Keyword Listening Casting 08.15', 'Playing Vol Min 08.15', 'Playing Vol Max 08.15',
+               'Muted Base 08.15', 'Muted Base Casting 08.15', 'Muted Playing Vol Min 08.15', 'Muted Playing Vol Max 08.15']
+
     centers = []
     radiuses = []
+    features = []
+    datas = []
+    point_state_dict = {}
+    point_labels = []
+    idx = 0
     for device in devices:
         data = app.database["iotdatas"].find({"device": device})
-        center, radius = compute_data_features(data)
+        center, radius, feas = compute_data_features(data)
         centers.append(center)
         radiuses.append(radius)
+        datas.append(feas)
+        for fea in feas:
+            features.append(fea[0])
+            point_state_dict[idx] = device
+            point_labels.append(devices.index(device))
+            idx += 1
 
     for i in range(len(devices)):
         now_device = devices[i]
         now_center = centers[i]
         now_radius = radiuses[i]
+        now_datas = datas[i]
         print(now_device + " (" + str(now_radius) + "):")
         for j in range(i + 1, len(devices)):
             cur_device = devices[j]
-            pairwise_distance = calculate_distance(centers[j], now_center)
-            print(now_device + " -> " + cur_device +
-                  ": " + str(pairwise_distance))
+            cur_datas = datas[j]
+            center_center_distance = calculate_distance(centers[j], now_center)
+            # print(now_device + " -> " + cur_device +
+            #       ": " + str(pairwise_distance))
+            point_center_distance = calculate_pairwise_distance(
+                now_datas, centers[j])
+            print(format(center_center_distance, ".2f"),
+                  ' , ', format(point_center_distance, ".2f"))
         print("================================================")
 
-    return {"message": str(center) + " and " + str(radius)}
+    draw(devices, features, point_state_dict, point_labels)
+
+    return {"message": "finish data processing"}
 
 
-@app.get("/draw")
-async def draw_tsne():
-    draw()
-    return {"message": "draw tsne chart"}
+@app.get("/check")
+async def check():
+    device = "test data 4"
+    datas = app.database["iotdatas"].find({"device": device})
+    powers = []
+    power_timestamps = []
+    emanations = []
+    emanation_timestamps = []
+    features = []
+    for data in datas:
+        powers.append(data["power"])
+        power_timestamps.append(data["power_timestamp"])
+        emanation = data["emanation"]
+        emanation_timestamps.append(data["emanation_timestamp"][0])
+
+    powers = np.concatenate(powers)
+    power_timestamps = np.concatenate(power_timestamps)
+
+    # Create a new figure and axis
+
+    # Plot the first line chart on the first y-axis
+    plt.scatter(power_timestamps, powers)
+
+    # # Create a second y-axis that shares the same x-axis
+    # ax2 = ax1.twinx()
+
+    # # Plot the second line chart on the second y-axis
+    # ax2.plot(times, emanations, 'b-')
+    # ax2.set_ylabel('Emanation', color='b')
+    # ax2.tick_params('y', colors='b')
+
+    # Set the title
+    plt.title("Power Changes with Time")
+    plt.savefig("power_time.png")
+
+    return {"message": "verify state changes"}
+
+
+@app.get("/getBoards")
+async def get_boards():
+    boards = app.database["boards"].find()
+    titles = [board["title"] for board in boards]
+    return {"message": str(titles)}
 
 
 @app.get("/start/")
 async def start_sensing(device: str):
     global isSensing
     isSensing = True
-    if loop_thread is None or not loop_thread.is_alive():
-        loop_thread = threading.Thread(target=sensing_mean(device))
-        loop_thread.start()
-        return {"message": "Sensing IoT device started: " + device}
-    else:
-        return {"message": "Sensing IoT device is already running"}
+    # if loop_thread is None or not loop_thread.is_alive():
+    #     loop_thread = threading.Thread(target=sensing(device))
+    #     loop_thread.start()
+    #     return {"message": "Sensing IoT device started: " + device}
+    # else:
+    #     return {"message": "Sensing IoT device is already running"}
+    sensing(device)
+    return {"message": "start sensing " + device}
 
 
 @app.get("/prep/")
@@ -193,6 +271,45 @@ async def remove_all():
     app.database["iotdatas"].delete_many({})
     return {"message": "Delete all data."}
 
+
+@app.get("/checkPower")
+async def check_power():
+    # power_sensing()
+    power_check()
+
+
+@app.get("/model")
+async def modeling():
+    devices = ["muted_base", "muted_paused", "muted_playing_mid",
+               "unmuted_base", "unmuted_paused", "unmuted_playing_mid"]
+    datas = []
+    labels = []
+    for device in devices:
+        data_points = app.database["iotdatas"].find({"device": device})
+        for data_point in data_points:
+            datas.append(data_point["data"])
+            labels.append(devices.index(device))
+
+    cluster_num = 3
+    kmeans = KMeans(n_clusters=cluster_num)
+    kpred = kmeans.fit_predict(datas)
+
+    # Compute confusion matrix
+    matrix = confusion_matrix(labels, kpred)
+    matrix = matrix[:, :cluster_num]
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(matrix, annot=True, fmt='d',
+                cmap='Blues', yticklabels=devices)
+    plt.xlabel('Predicted Cluster')
+    plt.ylabel('True State')
+
+    # Save the figure to a file
+    plt.savefig('confusion_matrix_1.png', bbox_inches='tight')
+
+    # If you still want to close the plot without displaying it
+    plt.close()
+
+
 # ========================================= Functions =========================================================
 
 
@@ -234,6 +351,110 @@ def create_data(data):
     print(data)
 
 
+def power_check():
+    device = "unmuted_playing_50"
+    avg_currents = []
+    max_currents = []
+    min_currents = []
+    times = []
+    ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
+    start_time = time.time()
+    sample_number = 600
+    for i in range(sample_number):
+        line = ser.readline()
+        if line:
+            info = line.decode().rstrip()
+            print(info)
+            infos = info.split(",") 
+            max_current = float(infos[0])
+            avg_current = float(infos[1])
+            min_current = float(infos[2])
+            avg_currents.append(avg_current)
+            max_currents.append(max_current)
+            min_currents.append(min_current)
+            times.append(time.time() - start_time)
+    ser.close()
+    print("duration: ", str(time.time() - start_time))
+    
+    # build the plot
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    ax1.scatter(times, avg_currents, c="b")
+    ax1.scatter(times, max_currents, c="r")
+    ax1.scatter(times, min_currents, c="g")
+    ax1.set_xlim(0, times[len(times) - 1])
+    ax1.set_ylim(-0.5, 2)
+    ax1.set_xlabel('Time (s)')
+    ax1.set_ylabel('Current')
+
+    # Specify bin edges from 0 to 1 with an interval of 0.1
+    bin_edges = [i/10 for i in range(0, 20)]
+    weights = [1/len(avg_currents)] * len(avg_currents)
+    ax2.hist(avg_currents, bins=bin_edges, weights=weights,
+             color="blue", edgecolor="black", rwidth=0.8)
+    ax2.set_xlim(0, 2)
+    ax2.grid(True)
+    ax2.set_xlabel('Current')
+    ax2.set_ylabel('Percentage')
+
+    fig.tight_layout()
+    fig.savefig(device + '.png')
+
+    data = {
+        "device": device,
+        "max_currents": max_currents,
+        "avg_currents": avg_currents,
+        "min_currents": min_currents,
+        "times": times
+    }
+    create_data(jsonable_encoder(data))
+
+
+def power_sensing():
+    print("\n")
+    start_time = time.time()
+    count = 0
+    powers = []
+    timestamps = []
+# ======================= Read data from data stream ========================================
+    isSensing = True
+    while (isSensing and count < 30):
+        print("time: ", time.time() - start_time)
+        # sensing_variable = app.database["sharedvariables"].find_one(
+        #     {"name": "sensing"})
+        # if sensing_variable["value"] == "false":
+        #     print("stop sensing at exploration stage!!!!!")
+        #     isSensing = False
+        #     break
+
+        q = multiprocessing.Queue()
+        p2 = multiprocessing.Process(
+            target=power_data.power_data, args=(q, start_time))
+
+        p2.start()
+        p2.join()
+        p = q.get()
+        t1 = q.get()
+        if len(p) > 0:
+            count += 1
+            print("power: ", p)
+            print("power timestamps: ", t1)
+            print("count: ", count)
+            powers.append(p)
+            timestamps.append(t1)
+
+    powers = np.concatenate(powers)
+    timestamps = np.concatenate(timestamps)
+    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', '#FF5733', '#DAF7A6', '#C70039', '#900C3F', '#581845',
+              '#1B1464', '#2C3E50', '#F4D03F', '#E74C3C', '#3498DB', '#A569BD', '#45B39D', '#922B21']
+    for i in range(len(powers)):
+        idx = 0 if i == 0 else i // 70
+        plt.scatter(timestamps[i], powers[i], c=colors[idx])
+    plt.xlabel("Time (s)")
+    plt.ylabel("Power")
+    plt.ylim(0, 1)
+    plt.savefig("muted_powers_000.png")
+
+
 def sensing(device):
     print("\n")
     start_time = time.time()
@@ -244,44 +465,30 @@ def sensing(device):
     centroids = []  # center point of clusters
     distance_threshold = 1.2  # threshold for outlier
     previous_data_cluster_idx = -1  # the state of previous data
-    count_threshold = 2  # threshold for new cluster (times of continous outlier)
+    # threshold for new cluster (times of continous outlier)
+    count_threshold = 2
     outlier_buffer = []  # a buffer array for potential new cluster
     outlier_buffer_idx = []  # an array records the potential outliers' idx
-    scaler_x = StandardScaler()  # the scaler for normalization
     new_state = True  # indicator for creating a new state
-
     count = 0
-
-    # Create Default POWER_OFF state as the first state
-    new_state_info = {
-        "time": time.time() - start_time,
-        "device": device,
-        "idx": "-1",
-        "prev_idx": "-99"
-    }
-    create_state(new_state_info)
 
 # ======================= Read data from data stream ========================================
     isSensing = True
     first = True  # the first data always wrong
-    while (isSensing):
-        sensing_variable = app.database["sharedvariables"].find_one(
-            {"name": "sensing"})
-        if sensing_variable["value"] == "false":
-            print("stop sensing at exploration stage!!!!!")
-            isSensing = False
-            break
-
-        # networks = []
-        powers = []
-        emanations = []
+    while (isSensing and count < 40):
+        # sensing_variable = app.database["sharedvariables"].find_one(
+        #     {"name": "sensing"})
+        # if sensing_variable["value"] == "false":
+        #     print("stop sensing at exploration stage!!!!!")
+        #     isSensing = False
+        #     break
 
         q = multiprocessing.Queue()
         # p1 = multiprocessing.Process(target=network_data.network_data, args=(q,))
         p2 = multiprocessing.Process(
-            target=power_data.power_data, args=(q,))
+            target=power_data.power_data, args=(q, start_time))
         p3 = multiprocessing.Process(
-            target=emanation_data.emanation_data, args=(q,))
+            target=emanation_data.emanation_data, args=(q, start_time))
 
         # p1.start()
         p2.start()
@@ -290,17 +497,33 @@ def sensing(device):
         p2.join()
         p3.join()
         # n = q.get()
-        p = q.get()
         e = q.get()
+        t2 = q.get()
+        p = q.get()
+        t1 = q.get()
         # networks.append(n)
         if len(p) > 0:
             # skip the first data
             if first:
                 first = False
+                # Create Default POWER_OFF state as the first state
+                new_state_info = {
+                    "time": time.time() - start_time,
+                    "device": device,
+                    "idx": "-1",
+                    "prev_idx": "-99"
+                }
+                create_state(new_state_info)
                 continue
+
             count += 1
+            print("power: ", p)
+            print("power timestamps: ", t1)
+            print("emanation: ", e)
+            print("emanation timestamps", t2)
+            print("time: ", time.time() - start_time)
             print("data point count: " + str(count))
-            
+
             features = [np.mean, np.var, lambda x: np.sqrt(np.mean(np.power(x, 2))), np.std, stats.median_abs_deviation, stats.skew, lambda x: stats.kurtosis(
                 x, fisher=False), stats.iqr, lambda x: np.mean((x-np.mean(x))**2)]
             # fea_network = [feature(network) for feature in features]
@@ -353,7 +576,8 @@ def sensing(device):
                 # larger than threshold
                 else:
                     print("larger than threshold")
-                    print("outlier buffer count: " + str(len(outlier_buffer) + 1))
+                    print("outlier buffer count: " +
+                          str(len(outlier_buffer) + 1))
                     # add to outlier buffer
                     outlier_buffer.append(fea)
                     # number of outliers more than the threshold => create new cluster
@@ -383,10 +607,15 @@ def sensing(device):
                 "state": str(cluster_idx),
                 "data": fea.tolist(),
                 "time": time.time() - start_time,
-                "device": device
+                "device": device,
+                "power": np.array(p).tolist(),
+                "power_timestamp": t1,
+                "emanation": np.array(e).tolist(),
+                "emanation_timestamp": t2
             }
             data_points_info[data_point_idx] = data_point_info
             data_point_idx += 1
+            create_data(jsonable_encoder(data_point_info))
 
             if new_state:
                 new_state_info = {
@@ -400,8 +629,8 @@ def sensing(device):
                 previous_data_cluster_idx = cluster_idx  # record the current state
 
     # Store data in database
-    for data_point in data_points_info.values():
-        create_data(jsonable_encoder(data_point))
+    # for data_point in data_points_info.values():
+    #     create_data(jsonable_encoder(data_point))
 
 
 def sensing_mean(device):
@@ -760,8 +989,16 @@ def local_sensing(device):
 
 def compute_data_features(data):
     features = []
+    mean_arr = []
+    count = 1
     for d in data:
-        features.append(d["data"])
+        mean_arr.append(d["data"])
+        count -= 1
+        if count == 0:
+            mean_fea = np.mean(mean_arr, axis=0)
+            mean_arr = []
+            count = 1
+            features.append(mean_fea)
 
     center_point = calculate_centroid(features)
     total_distance = 0
@@ -769,54 +1006,128 @@ def compute_data_features(data):
         distance = calculate_distance(data_point, center_point)
         total_distance += distance
 
-    radius = total_distance / len(features)
+    radius = format(total_distance / len(features), ".2f")
 
-    return center_point, radius
+    return center_point, radius, features
 
 
-def draw():
-    # devices = ["power_on_muted", "power_on_unmuted", "unmuted_volume_change",
-    #            "muted_volume_change", "muted_interaction", "unmuted_interaction"]
-    devices = ["listening keyword", "listening monitor speech",
-               "muted tap", "muted monitor speech"]
-    features = []
-    point_state_dict = {}
-    idx = 0
-    for device in devices:
-        data = app.database["iotdatas"].find({"device": device})
-        for d in data:
-            point_state_dict[idx] = device
-            idx += 1
-            features.append(d["data"])
+def draw(devices, features, point_state_dict, point_labels):
     scaler = StandardScaler()
     feature_scaled = scaler.fit_transform(features)
 
-    tsne = TSNE(n_components=2, perplexity=40, init="pca")
-    tsne_features = tsne.fit_transform(feature_scaled)
-    tsne_features_x = tsne_features[:, 0]
-    tsne_features_y = tsne_features[:, 1]
+    # ======================= Elbow Method & Silhouette Score ============================
+    wcss = []
+    for i in range(1, len(devices)):  # Testing for up to 10 clusters
+        kmeans = KMeans(n_clusters=i, init='k-means++',
+                        max_iter=300, n_init=10, random_state=0)
+        kmeans.fit(feature_scaled)
+        wcss.append(kmeans.inertia_)
+
+    plt.figure(figsize=(12, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(range(1, len(devices)), wcss)
+    plt.title('Elbow Method')
+    plt.xlabel('Number of clusters')
+    plt.ylabel('WCSS')
+
+    # Silhouette Score
+    sil = []
+    for i in range(2, len(devices)):  # Silhouette score is defined only for more than 1 cluster
+        kmeans = KMeans(n_clusters=i, init='k-means++',
+                        max_iter=300, n_init=10, random_state=0)
+        kmeans.fit(feature_scaled)
+        silhouette_avg = silhouette_score(feature_scaled, kmeans.labels_)
+        sil.append(silhouette_avg)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(range(2, len(devices)), sil)
+    plt.title('Silhouette Score Method')
+    plt.xlabel('Number of clusters')
+    plt.ylabel('Silhouette Score')
+
+    plt.tight_layout()
+    plt.savefig('silhouette_score_1.png', bbox_inches='tight')
+
+    # # TSNE + KMEANS CLUSTER VISUALIZATION
+    # tsne = TSNE(n_components=2, perplexity=40, init="pca")
+    # tsne_features = tsne.fit_transform(feature_scaled)
+    # tsne_features_x = tsne_features[:, 0]
+    # tsne_features_y = tsne_features[:, 1]
 
     # KMEANS
-    kmeans = KMeans(n_clusters=len(devices))
-    kpred = kmeans.fit_predict(tsne_features)
+    cluster_num = 5
+    kmeans = KMeans(n_clusters=cluster_num)
+    kpred = kmeans.fit_predict(feature_scaled)
 
     colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', '#FF5733', '#DAF7A6', '#C70039', '#900C3F', '#581845',
               '#1B1464', '#2C3E50', '#F4D03F', '#E74C3C', '#3498DB', '#A569BD', '#45B39D', '#922B21']
     markers = ['o', 'v', '*', '^', '8', 's', 'p', '*', 'h',
                'H', 'D', 'd', 'P', 'X', '+', '.', ',', '1', '2']
 
+    cluster_states_dict = {
+        device: [0 for i in range(cluster_num)] for device in devices}
     for i in range(len(features)):
         device = point_state_dict[i]
         cluster = kpred[i]
-        x = tsne_features_x[i]
-        y = tsne_features_y[i]
-        plt.scatter(x, y, c=colors[devices.index(
-            device)], marker=markers[cluster], label=f'State: {device} | Cluster: {cluster}')
+        cluster_states_dict[device][cluster] += 1
+        # x = tsne_features_x[i]
+        # y = tsne_features_y[i]
+        # plt.scatter(x, y, c=colors[devices.index(
+        #     device)], marker=markers[cluster], label=f'State: {device[:-6]}')
 
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys(), loc="upper right")
-    plt.show()
+    # handles, labels = plt.gca().get_legend_handles_labels()
+    # by_label = dict(zip(labels, handles))
+    # plt.legend(by_label.values(), by_label.keys(), loc="upper right")
+    # plt.show()
+
+    # ================== PIE CHART ==========================
+    # Determine the layout for the subplots
+    # num_devices = len(devices)
+    # cols = 3  # 2 columns of pie charts, adjust if you prefer a different layout
+    # # Ceiling division to get the number of rows
+    # rows = -(-num_devices // cols)
+
+    # # Create a new figure
+    # fig, axes = plt.subplots(rows, cols, figsize=(cols * 6, rows * 6))
+
+    # # Flatten axes object if it's 2D (i.e., more than one row and column)
+    # if rows > 1 or cols > 1:
+    #     axes = axes.ravel()
+
+    # # Plot each pie chart
+    # for i, (device, values) in enumerate(cluster_states_dict.items()):
+    #     ax = axes[i]
+    #     ax.pie(values, labels=values, colors=colors,
+    #            autopct='%1.1f%%', startangle=140)
+    #     ax.set_title(f"Data Distribution for {device[:-6]}")
+    #     # Equal aspect ratio ensures pie is drawn as a circle.
+    #     ax.axis('equal')
+
+    # # Hide any remaining empty subplots
+    # for j in range(i + 1, rows * cols):
+    #     axes[j].axis('off')
+
+    # # # Save the figure to a file
+    # fig.savefig('pie_charts.png', bbox_inches='tight')
+
+    # ================== CONFUSION MATRIX ==========================
+    # Compute confusion matrix
+    matrix = confusion_matrix(point_labels, kpred)
+    matrix = matrix[:, :cluster_num]
+    tick_labels = [device[:-6] for device in devices]
+
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(matrix, annot=True, fmt='d',
+                cmap='Blues', yticklabels=tick_labels)
+    plt.xlabel('Predicted Cluster')
+    plt.ylabel('True State')
+
+    # Save the figure to a file
+    plt.savefig('confusion_matrix_1.png', bbox_inches='tight')
+
+    # If you still want to close the plot without displaying it
+    plt.close()
 
 
 def cal_clusters_center(device):
@@ -838,3 +1149,13 @@ def cal_clusters_center(device):
 
     global centroids
     centroids = center_dict
+
+
+def calculate_pairwise_distance(now_datas, other_center):
+    total_distance = 0
+    for d1 in now_datas:
+        total_distance += calculate_distance(d1, other_center)
+
+    avg = total_distance / len(now_datas)
+
+    return avg
