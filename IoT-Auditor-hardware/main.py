@@ -67,6 +67,7 @@ def startup_db_client():
     # ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("tcpdump -i any -w filename.pcap tcp and host 172.16.42.205")
     # print(ssh_stdout)
 
+
 @app.on_event("shutdown")
 def shutdown_db_client():
     # global explore_thread, predict_thread, listening
@@ -265,50 +266,25 @@ async def remove(device: str):
     return {"message": "Delete all data of " + device}
 
 
-@app.get("/removeall")
-async def remove_all():
+@app.get("/removeAllData")
+async def remove_all_data():
     app.database["iotstates"].delete_many({})
     app.database["iotdatas"].delete_many({})
     return {"message": "Delete all data."}
 
 
-@app.get("/checkPower")
-async def check_power():
-    # power_sensing()
-    power_check()
+@app.get("/removeAllBoards")
+async def remove_all_boards():
+    app.database["boards"].delete_many({})
+    return {"message": "delete all boards."}
 
 
-@app.get("/model")
-async def modeling():
-    devices = ["muted_base", "muted_paused", "muted_playing_mid",
-               "unmuted_base", "unmuted_paused", "unmuted_playing_mid"]
-    datas = []
-    labels = []
-    for device in devices:
-        data_points = app.database["iotdatas"].find({"device": device})
-        for data_point in data_points:
-            datas.append(data_point["data"])
-            labels.append(devices.index(device))
-
-    cluster_num = 3
-    kmeans = KMeans(n_clusters=cluster_num)
-    kpred = kmeans.fit_predict(datas)
-
-    # Compute confusion matrix
-    matrix = confusion_matrix(labels, kpred)
-    matrix = matrix[:, :cluster_num]
-    plt.figure(figsize=(12, 10))
-    sns.heatmap(matrix, annot=True, fmt='d',
-                cmap='Blues', yticklabels=devices)
-    plt.xlabel('Predicted Cluster')
-    plt.ylabel('True State')
-
-    # Save the figure to a file
-    plt.savefig('confusion_matrix_1.png', bbox_inches='tight')
-
-    # If you still want to close the plot without displaying it
-    plt.close()
-
+@app.get("/powerSensing")
+async def power_sensing():
+    # TODO: return data (e.g. avg, max, and min current) to frontend
+    # or just store it to database? sounds more efficient, and we don't need the data in interaction stage
+    # the reason why is to keep the recording sync with data collection 
+    pass
 
 # ========================================= Functions =========================================================
 
@@ -349,110 +325,6 @@ def create_state(state):
 def create_data(data):
     app.database["iotdatas"].insert_one(data)
     print(data)
-
-
-def power_check():
-    device = "unmuted_playing_50"
-    avg_currents = []
-    max_currents = []
-    min_currents = []
-    times = []
-    ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
-    start_time = time.time()
-    sample_number = 600
-    for i in range(sample_number):
-        line = ser.readline()
-        if line:
-            info = line.decode().rstrip()
-            print(info)
-            infos = info.split(",") 
-            max_current = float(infos[0])
-            avg_current = float(infos[1])
-            min_current = float(infos[2])
-            avg_currents.append(avg_current)
-            max_currents.append(max_current)
-            min_currents.append(min_current)
-            times.append(time.time() - start_time)
-    ser.close()
-    print("duration: ", str(time.time() - start_time))
-    
-    # build the plot
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    ax1.scatter(times, avg_currents, c="b")
-    ax1.scatter(times, max_currents, c="r")
-    ax1.scatter(times, min_currents, c="g")
-    ax1.set_xlim(0, times[len(times) - 1])
-    ax1.set_ylim(-0.5, 2)
-    ax1.set_xlabel('Time (s)')
-    ax1.set_ylabel('Current')
-
-    # Specify bin edges from 0 to 1 with an interval of 0.1
-    bin_edges = [i/10 for i in range(0, 20)]
-    weights = [1/len(avg_currents)] * len(avg_currents)
-    ax2.hist(avg_currents, bins=bin_edges, weights=weights,
-             color="blue", edgecolor="black", rwidth=0.8)
-    ax2.set_xlim(0, 2)
-    ax2.grid(True)
-    ax2.set_xlabel('Current')
-    ax2.set_ylabel('Percentage')
-
-    fig.tight_layout()
-    fig.savefig(device + '.png')
-
-    data = {
-        "device": device,
-        "max_currents": max_currents,
-        "avg_currents": avg_currents,
-        "min_currents": min_currents,
-        "times": times
-    }
-    create_data(jsonable_encoder(data))
-
-
-def power_sensing():
-    print("\n")
-    start_time = time.time()
-    count = 0
-    powers = []
-    timestamps = []
-# ======================= Read data from data stream ========================================
-    isSensing = True
-    while (isSensing and count < 30):
-        print("time: ", time.time() - start_time)
-        # sensing_variable = app.database["sharedvariables"].find_one(
-        #     {"name": "sensing"})
-        # if sensing_variable["value"] == "false":
-        #     print("stop sensing at exploration stage!!!!!")
-        #     isSensing = False
-        #     break
-
-        q = multiprocessing.Queue()
-        p2 = multiprocessing.Process(
-            target=power_data.power_data, args=(q, start_time))
-
-        p2.start()
-        p2.join()
-        p = q.get()
-        t1 = q.get()
-        if len(p) > 0:
-            count += 1
-            print("power: ", p)
-            print("power timestamps: ", t1)
-            print("count: ", count)
-            powers.append(p)
-            timestamps.append(t1)
-
-    powers = np.concatenate(powers)
-    timestamps = np.concatenate(timestamps)
-    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', '#FF5733', '#DAF7A6', '#C70039', '#900C3F', '#581845',
-              '#1B1464', '#2C3E50', '#F4D03F', '#E74C3C', '#3498DB', '#A569BD', '#45B39D', '#922B21']
-    for i in range(len(powers)):
-        idx = 0 if i == 0 else i // 70
-        plt.scatter(timestamps[i], powers[i], c=colors[idx])
-    plt.xlabel("Time (s)")
-    plt.ylabel("Power")
-    plt.ylim(0, 1)
-    plt.savefig("muted_powers_000.png")
 
 
 def sensing(device):

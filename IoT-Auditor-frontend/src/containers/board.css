@@ -20,16 +20,33 @@
 
 .top-side-div {
     width: 100%;
-    height: 7%;
+    height: 5%;
     display: flex;
     justify-content: space-evenly;
     align-items: center;
     background-color: rgb(245, 218, 129);
 }
 
-.mid-side-div {
+.bottom-side-div {
     width: 100%;
-    height: 93%;
+    height: 95%;
+    display: flex;
+}
+
+.left-side-div {
+    /* width: 20%; */
+    height: 100%;
+    overflow-y: auto;
+}
+
+.mid-side-div {
+    /* width: 60%; */
+    height: 100%;
+}
+
+.right-side-div {
+    /* width: 20%; */
+    height: 100%;
 }
 
 .annotation-top-side-div {

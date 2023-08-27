@@ -5,8 +5,8 @@ import App from './App';
 import 'bootstrap/dist/css/bootstrap.css';
 import { createRoot } from "react-dom/client";
 
-window.BACKEND_ADDRESS = process.env.NODE_ENV === 'production' ? 'https://leanprivacyreview.herokuapp.com/api' : 'http://localhost:9990/api';
-
+window.BACKEND_ADDRESS = 'http://localhost:9990/api';
+window.HARDWARE_ADDRESS = 'https://localhost:8000'; 
 const container = document.getElementById('root');
 const root = createRoot(container);
 root.render(<App />);

@@ -320,7 +320,7 @@ const FlowChart = forwardRef((props, ref) => {
     }, []);
 
     return (
-        <div style={{ width: '100%', height: '100%' }} ref={reactFlowWrapper}>
+        <div style={{ width: '100%', height: '100%', backgroundColor: "white" }} ref={reactFlowWrapper}>
             {step === 0 &&
                 <ReactFlow
                     nodeTypes={nodeTypes_explore}

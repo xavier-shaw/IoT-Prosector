@@ -10,8 +10,10 @@ import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
 import { MarkerType } from "reactflow";
-import { Button, Chip } from "@mui/material";
+import { Button, Grid, Typography } from "@mui/material";
 import SideNodeBar from "../components/SideNodeBar";
+import InstructionTable from "../components/InstructionTable";
+import InteractionRecorder from "../components/InteractionRecorder";
 
 export default function Board(props) {
     let params = useParams();
@@ -24,6 +26,9 @@ export default function Board(props) {
         "Click button to begin your verification."
     ]
     const [isSensing, setIsSensing] = useState(-1);
+    const [statesDict, setStatesDict] = useState({});
+    const [transitionsDict, setTransitionsdict] = useState({});
+    const [instructions, setInstructions] = useState([]);
     const nodeChartRef = useRef(null);
 
     useEffect(() => {
@@ -33,6 +38,15 @@ export default function Board(props) {
                 let board_data = resp.data[0];
                 board_data.data = JSON.parse(board_data.data);
                 board_data.chart = JSON.parse(board_data.chart);
+                if (board_data.data.hasOwnProperty("instructions")) {
+                    setInstructions(board_data.data.instructions);
+                };
+                if (board_data.data.hasOwnProperty("statesDict")) {
+                    setStatesDict(board_data.data.statesDict);
+                };
+                if (board_data.data.hasOwnProperty("transitionsDict")) {
+                    setTransitionsdict(board_data.data.transitionsDict);
+                };
                 console.log("board data", board_data);
                 setBoard(board_data);
                 axios
@@ -100,8 +114,6 @@ export default function Board(props) {
         let boardData = boardCpy.data;
         let boardChart = nodeChartRef.current.updateAnnotation();
         boardCpy.chart = boardChart;
-        let statesDict = boardData.hasOwnProperty("statesDict") ? boardData.statesDict : {};
-        let transitionsDict = boardData.hasOwnProperty("transitionsDict") ? boardData.transitionsDict : {};
         for (const state of boardChart.nodes) {
             let state_id = state["id"];
             statesDict[state_id] = state;
@@ -112,6 +124,7 @@ export default function Board(props) {
         };
         boardData.statesDict = statesDict;
         boardData.transitionsDict = transitionsDict;
+        boardData.instructions = instructions;
         setBoard((prevBoard) => ({ ...prevBoard, data: boardData, chart: boardChart }));
         console.log("update board data", boardCpy);
         boardCpy["data"] = JSON.stringify(boardData);
@@ -177,8 +190,8 @@ export default function Board(props) {
                 let iotStates = resp.data;
                 let boardData = board.data;
                 let boardChart = board.chart;
-                let statesDict = board.data.hasOwnProperty("statesDict") ? board.data.statesDict : {};
-                let transitionsDict = board.data.hasOwnProperty("transitionsDict") ? board.data.transitionsDict : {};
+                let statesDict = {...statesDict};
+                let transitionsDict = {...transitionsDict};
 
                 for (const iotState of iotStates) {
                     // if it is a new state => create a new node for this state
@@ -308,22 +321,30 @@ export default function Board(props) {
                         }
                     })()}
                 </div>
-                <div className="mid-side-div">
-                    {step === 0 &&
-                        <NodeChart board={board} ref={nodeChartRef} step={step} />
-                    }
-                    {step === 1 &&
-                        <div style={{ width: "100%", height: "100%" }}>
-                            <div className="annotation-top-side-div">
-                                <NodeChart board={board} ref={nodeChartRef} step={step} />
+                <Grid container columnSpacing={2} className="bottom-side-div">
+                    <Grid item xs={3} className="left-side-div">
+                        <InstructionTable instructions={instructions} setInstructions={setInstructions} />
+                    </Grid>
+                    <Grid item xs={6} className="mid-side-div">
+                        {step === 0 &&
+                            <NodeChart board={board} ref={nodeChartRef} step={step} />
+                        }
+                        {step === 1 &&
+                            <div style={{ width: "100%", height: "100%" }}>
+                                <div className="annotation-top-side-div">
+                                    <NodeChart board={board} ref={nodeChartRef} step={step} />
+                                </div>
+                                <div className="annotation-bottom-side-div">
+                                    {/* <TimelineChart totalStates={totalStates} /> */}
+                                    <SideNodeBar />
+                                </div>
                             </div>
-                            <div className="annotation-bottom-side-div">
-                                {/* <TimelineChart totalStates={totalStates} /> */}
-                                <SideNodeBar />
-                            </div>
-                        </div>
-                    }
-                </div>
+                        }
+                    </Grid>
+                    <Grid item xs={3} className="right-side-div" zeroMinWidth>
+                        <InteractionRecorder/>
+                    </Grid>
+                </Grid>
             </div>
         </div>
     )
