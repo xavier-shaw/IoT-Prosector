@@ -39,22 +39,17 @@
     overflow-y: auto;
 }
 
-.mid-side-div {
-    /* width: 60%; */
+.panel-div {
     height: 100%;
+    width: 100%;
 }
 
-.right-side-div {
-    /* width: 20%; */
-    height: 100%;
-}
-
-.annotation-top-side-div {
+.collage-top-side-div {
     width: 100%;
     height: 85%;
 }
 
-.annotation-bottom-side-div {
+.collage-bottom-side-div {
     width: 100%;
     height: 15%;
 }

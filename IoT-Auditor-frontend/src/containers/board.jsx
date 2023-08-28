@@ -15,6 +15,7 @@ import SideNodeBar from "../components/SideNodeBar";
 import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
 import { transition } from "d3";
+import CollagePanel from "../components/CollagePanel";
 
 export default function Board(props) {
     let params = useParams();
@@ -81,12 +82,12 @@ export default function Board(props) {
     };
 
     const onSave = () => {
-        let newBoard = {...board};
+        let newBoard = { ...board };
         let boardChart = nodeChartRef.current.updateAnnotation();
         newBoard.chart = boardChart;
 
-        let newStatesDict = {...statesDict};
-        let newTransitionDict = {...transitionsDict};
+        let newStatesDict = { ...statesDict };
+        let newTransitionDict = { ...transitionsDict };
         for (const state of boardChart.nodes) {
             let state_id = state["id"];
             statesDict[state_id] = state;
@@ -101,7 +102,7 @@ export default function Board(props) {
         newBoard.data.transitionsDict = newTransitionDict;
         newBoard.data.instructions = instructions;
         setBoard(newBoard);
-        newBoard.data= JSON.stringify(newBoard.data);
+        newBoard.data = JSON.stringify(newBoard.data);
         newBoard.chart = JSON.stringify(newBoard.chart);
         axios
             .post(window.BACKEND_ADDRESS + "/boards/saveBoard", { boardId: board._id, updates: newBoard })
@@ -111,8 +112,8 @@ export default function Board(props) {
     };
 
     const createNode = (node_idx, status, action) => {
-        let newStatesDict = {...statesDict};
-        let boardChart = {...board.chart};
+        let newStatesDict = { ...statesDict };
+        let boardChart = { ...board.chart };
         let index = newStatesDict.length;
         let position;
         // create edge from last node
@@ -120,12 +121,12 @@ export default function Board(props) {
             let lastNode = newStatesDict[index - 1];
             let newTransition = createEdge(lastNode.id, node_idx, action);
             boardChart.edges.push(newTransition);
-            position = { x: lastNode.position.x, y: lastNode.position.y + 100};
+            position = { x: lastNode.position.x, y: lastNode.position.y + 100 };
         }
         else {
             // base node
             let baseNodeCnt = (boardChart.nodes.filter((n) => n.data.status === "Base")).length;
-            position = { x: 10 + 200 * baseNodeCnt, y: 10};
+            position = { x: 10 + 200 * baseNodeCnt, y: 10 };
         }
 
         let state = {
@@ -151,12 +152,12 @@ export default function Board(props) {
         boardChart.nodes.push(state);
         newStatesDict[node_idx] = state;
 
-        setBoard((prevBoard) => ({...prevBoard, chart: boardChart}));
+        setBoard((prevBoard) => ({ ...prevBoard, chart: boardChart }));
         setStatesDict(newStatesDict);
     };
 
     const createEdge = (srcId, dstId, action) => {
-        let newTransitionsDict = {...transitionsDict};
+        let newTransitionsDict = { ...transitionsDict };
         let transition = {
             id: srcId + "-" + dstId,
             type: "transitionEdge",
@@ -221,8 +222,8 @@ export default function Board(props) {
                 let iotStates = resp.data;
                 let boardData = board.data;
                 let boardChart = board.chart;
-                let newStatesDict = {...statesDict};
-                let newTransitionsDict = {...transitionsDict};
+                let newStatesDict = { ...statesDict };
+                let newTransitionsDict = { ...transitionsDict };
 
                 for (const iotState of iotStates) {
                     // if it is a new state => create a new node for this state
@@ -353,30 +354,46 @@ export default function Board(props) {
                         }
                     })()} */}
                 </div>
-                <Grid container columnSpacing={2} className="bottom-side-div">
-                    <Grid item xs={3} className="left-side-div">
-                        <InstructionTable instructions={instructions} setInstructions={setInstructions} />
-                    </Grid>
-                    <Grid item xs={6} className="mid-side-div">
-                        {step === 0 &&
-                            <NodeChart board={board} ref={nodeChartRef} step={step} />
-                        }
-                        {step === 1 &&
-                            <div style={{ width: "100%", height: "100%" }}>
-                                <div className="annotation-top-side-div">
-                                    <NodeChart board={board} ref={nodeChartRef} step={step} />
-                                </div>
-                                <div className="annotation-bottom-side-div">
-                                    {/* <TimelineChart totalStates={totalStates} /> */}
-                                    <SideNodeBar />
-                                </div>
-                            </div>
-                        }
-                    </Grid>
-                    <Grid item xs={3} className="right-side-div" zeroMinWidth>
-                        <InteractionRecorder createNode={createNode}/>
-                    </Grid>
-                </Grid>
+                {(() => {
+                    switch (step) {
+                        case 0:
+                            return (
+                                <Grid container columnSpacing={2} className="bottom-side-div">
+                                    <Grid item xs={3} className="table-div">
+                                        <InstructionTable instructions={instructions} setInstructions={setInstructions} />
+                                    </Grid>
+                                    <Grid item xs={6} className="panel-div">
+                                        <NodeChart board={board} ref={nodeChartRef} step={step} />
+                                    </Grid>
+                                    <Grid item xs={3} className="panel-div" zeroMinWidth>
+                                        <InteractionRecorder createNode={createNode} />
+                                    </Grid>
+                                </Grid>
+                            );
+                        case 1:
+                            return (
+                                <Grid container columnSpacing={2} className="bottom-side-div">
+                                    <Grid item xs={7} className="panel-div">
+                                        {/* <NodeChart board={board} ref={nodeChartRef} step={step} /> */}
+                                        <div style={{ width: "100%", height: "100%" }}>
+                                        <div className="collage-top-side-div">
+                                                <NodeChart board={board} ref={nodeChartRef} step={step} />
+                                            </div>
+                                        <div className="collage-bottom-side-div">
+                                                <SideNodeBar />
+                                            </div>
+                                        </div>
+                                    </Grid>
+                                    <Grid item xs={5} className="panel-div" zeroMinWidth>
+                                        <CollagePanel />
+                                    </Grid>
+                                </Grid>
+                            )
+                        default:
+                            break;
+                    }
+                })()}
+
             </div>
         </div>
     )

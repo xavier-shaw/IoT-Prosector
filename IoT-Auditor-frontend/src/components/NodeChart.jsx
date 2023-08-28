@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import ReactFlow, { Background, Controls, useEdgesState, useNodesState, applyNodeChanges, applyEdgeChanges, Panel, useReactFlow, ReactFlowProvider, addEdge, getIncomers, getOutgoers, getConnectedEdges } from 'reactflow';
+import ReactFlow, { Background, Controls, useEdgesState, useNodesState, useOnSelectionChange, Panel, useReactFlow, ReactFlowProvider, addEdge, getIncomers, getOutgoers, getConnectedEdges } from 'reactflow';
 import Dagre from 'dagre';
 import 'reactflow/dist/style.css';
 import { cloneDeep } from 'lodash';
@@ -73,6 +73,17 @@ const FlowChart = forwardRef((props, ref) => {
     const updateAnnotation = () => {
         const flowObj = reactFlowInstance.toObject();
         return flowObj;
+    };
+
+    function ListenToSelectionChange() {
+        useOnSelectionChange({
+            onChange: ({ nodes, edges }) => {
+                console.log('changed selection', nodes, edges);
+                // TODO: send this selection to the collage panel
+            },
+        });
+
+        return null;
     };
 
     const onLayout = useCallback(() => {
@@ -222,7 +233,7 @@ const FlowChart = forwardRef((props, ref) => {
             // const incomers = getIncomers(node, nodes, edges);
             // const outgoers = getOutgoers(node, nodes, edges);
             let connectedEdges = getConnectedEdges([node], edges);
-            target.data.nodeEdgeDict = {...target.data.nodeEdgeDict, nodeIdx: connectedEdges};
+            target.data.nodeEdgeDict = { ...target.data.nodeEdgeDict, nodeIdx: connectedEdges };
             const remainEdges = allEdges.filter((edge) => !connectedEdges.includes(edge));
             connectedEdges = connectedEdges.map((edge) => {
                 if (edge.source === node.id) {
@@ -361,6 +372,7 @@ const FlowChart = forwardRef((props, ref) => {
                     <Controls />
                 </ReactFlow>
             }
+            <ListenToSelectionChange/>
         </div>
     )
 });
