@@ -14,17 +14,18 @@ import { Button, Grid, Typography } from "@mui/material";
 import SideNodeBar from "../components/SideNodeBar";
 import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
+import { transition } from "d3";
 
 export default function Board(props) {
     let params = useParams();
     const [board, setBoard] = useState({});
     const [step, setStep] = useState(0);
-    const stages = ["Exploration", "Annotation", "Verification"];
-    const hints = [
-        "Click button to start or stop generating state diagram.",
-        "Click a node or edge to annotate, then confirm the annotation.",
-        "Click button to begin your verification."
-    ]
+    const stages = ["Interaction", "Collage", "Verification"];
+    // const hints = [
+    //     "Click button to start or stop generating state diagram.",
+    //     "Click a node or edge to annotate, then confirm the annotation.",
+    //     "Click button to begin your verification."
+    // ]
     const [isSensing, setIsSensing] = useState(-1);
     const [statesDict, setStatesDict] = useState({});
     const [transitionsDict, setTransitionsdict] = useState({});
@@ -79,6 +80,109 @@ export default function Board(props) {
         setBoard(prevBoard => ({ ...prevBoard, title: titleText }));
     };
 
+    const onSave = () => {
+        let newBoard = {...board};
+        let boardChart = nodeChartRef.current.updateAnnotation();
+        newBoard.chart = boardChart;
+
+        let newStatesDict = {...statesDict};
+        let newTransitionDict = {...transitionsDict};
+        for (const state of boardChart.nodes) {
+            let state_id = state["id"];
+            statesDict[state_id] = state;
+        };
+        for (const transition of boardChart.edges) {
+            let transition_id = transition["id"];
+            transitionsDict[transition_id] = transition;
+        };
+        setStatesDict(newStatesDict);
+        setTransitionsdict(newTransitionDict);
+        newBoard.data.statesDict = newStatesDict;
+        newBoard.data.transitionsDict = newTransitionDict;
+        newBoard.data.instructions = instructions;
+        setBoard(newBoard);
+        newBoard.data= JSON.stringify(newBoard.data);
+        newBoard.chart = JSON.stringify(newBoard.chart);
+        axios
+            .post(window.BACKEND_ADDRESS + "/boards/saveBoard", { boardId: board._id, updates: newBoard })
+            .then((resp) => {
+                console.log("update board", resp.data);
+            });
+    };
+
+    const createNode = (node_idx, status, action) => {
+        let newStatesDict = {...statesDict};
+        let boardChart = {...board.chart};
+        let index = newStatesDict.length;
+        let position;
+        // create edge from last node
+        if (status === "Action") {
+            let lastNode = newStatesDict[index - 1];
+            let newTransition = createEdge(lastNode.id, node_idx, action);
+            boardChart.edges.push(newTransition);
+            position = { x: lastNode.position.x, y: lastNode.position.y + 100};
+        }
+        else {
+            // base node
+            let baseNodeCnt = (boardChart.nodes.filter((n) => n.data.status === "Base")).length;
+            position = { x: 10 + 200 * baseNodeCnt, y: 10};
+        }
+
+        let state = {
+            id: node_idx,
+            type: "stateNode",
+            position: position,
+            positionAbsolute: position,
+            data: { label: "State " + index, status: status },
+            style: {
+                width: "150px",
+                height: "80px",
+                borderWidth: "1px",
+                borderStyle: "solid",
+                padding: "10px",
+                borderRadius: "10px",
+                backgroundColor: "#788bff",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center"
+            },
+            zIndex: 3
+        };
+        boardChart.nodes.push(state);
+        newStatesDict[node_idx] = state;
+
+        setBoard((prevBoard) => ({...prevBoard, chart: boardChart}));
+        setStatesDict(newStatesDict);
+    };
+
+    const createEdge = (srcId, dstId, action) => {
+        let newTransitionsDict = {...transitionsDict};
+        let transition = {
+            id: srcId + "-" + dstId,
+            type: "transitionEdge",
+            source: srcId,
+            target: dstId,
+            markerEnd: {
+                type: MarkerType.ArrowClosed,
+                width: 30,
+                height: 30,
+                color: '#FF0072',
+            },
+            style: {
+                strokeWidth: 2,
+                stroke: '#000000',
+            },
+            data: {
+                label: action
+            },
+            zIndex: 4
+        };
+
+        newTransitionsDict[transition.id] = transition;
+        setTransitionsdict(newTransitionsDict);
+        return transition;
+    }
+
     const deletePrevHightlight = (prevStateIdx, curStateIdx) => {
         let boardChart = board.chart;
         boardChart.nodes = boardChart.nodes.map((node) => {
@@ -109,79 +213,6 @@ export default function Board(props) {
         setBoard((prevBoard) => ({ ...prevBoard, chart: boardChart }));
     };
 
-    const onSave = () => {
-        let boardCpy = cloneDeep(board);
-        let boardData = boardCpy.data;
-        let boardChart = nodeChartRef.current.updateAnnotation();
-        boardCpy.chart = boardChart;
-        for (const state of boardChart.nodes) {
-            let state_id = state["id"];
-            statesDict[state_id] = state;
-        };
-        for (const transition of boardChart.edges) {
-            let transition_id = transition["id"];
-            transitionsDict[transition_id] = transition;
-        };
-        boardData.statesDict = statesDict;
-        boardData.transitionsDict = transitionsDict;
-        boardData.instructions = instructions;
-        setBoard((prevBoard) => ({ ...prevBoard, data: boardData, chart: boardChart }));
-        console.log("update board data", boardCpy);
-        boardCpy["data"] = JSON.stringify(boardData);
-        boardCpy["chart"] = JSON.stringify(boardChart);
-        axios
-            .post(window.BACKEND_ADDRESS + "/boards/saveBoard", { boardId: board._id, updates: boardCpy })
-            .then((resp) => {
-                console.log("update board", resp.data);
-            });
-    };
-
-    const handleClickAnnotate = () => {
-        if (isSensing !== -1) {
-            axios
-                .get(window.BACKEND_ADDRESS + "/shared/stop")
-                .then((resp) => {
-                    console.log("stop sensing at annotation stage", resp.data);
-                    clearInterval(isSensing);
-                    setIsSensing(-1);
-                });
-        }
-        else {
-            axios
-                .get(window.BACKEND_ADDRESS + "/shared/start/" + "annotation")
-                .then((resp) => {
-                    console.log("start sensing at annotation stage", resp.data);
-                    let idx = setInterval(() => {
-                        annotationSensing();
-                    }, 1000);
-                    setIsSensing(idx);
-                })
-        }
-    };
-
-    const handleClickExplore = () => {
-        if (isSensing !== -1) {
-            axios
-                .get(window.BACKEND_ADDRESS + "/shared/stop")
-                .then((resp) => {
-                    console.log("stop sensing at exploration stage", resp.data);
-                    clearInterval(isSensing);
-                    setIsSensing(-1);
-                })
-        }
-        else {
-            axios
-                .get(window.BACKEND_ADDRESS + "/shared/start/" + "exploration")
-                .then((resp) => {
-                    console.log("start sensing at exploration stage", resp.data);
-                    let idx = setInterval(() => {
-                        sensing();
-                    }, 1000);
-                    setIsSensing(idx);
-                })
-        }
-    };
-
     const sensing = () => {
         axios.
             get(window.BACKEND_ADDRESS + "/states/" + board.title)
@@ -190,8 +221,8 @@ export default function Board(props) {
                 let iotStates = resp.data;
                 let boardData = board.data;
                 let boardChart = board.chart;
-                let statesDict = {...statesDict};
-                let transitionsDict = {...transitionsDict};
+                let newStatesDict = {...statesDict};
+                let newTransitionsDict = {...transitionsDict};
 
                 for (const iotState of iotStates) {
                     // if it is a new state => create a new node for this state
@@ -217,7 +248,7 @@ export default function Board(props) {
                             },
                             zIndex: 3
                         };
-                        statesDict[state.id] = state;
+                        newStatesDict[state.id] = state;
                         boardChart.nodes.push(state);
 
                         if (iotState.prev_idx !== "-99") {
@@ -241,7 +272,7 @@ export default function Board(props) {
                                 },
                                 zIndex: 4
                             };
-                            transitionsDict[transition.id] = transition;
+                            newTransitionsDict[transition.id] = transition;
                             boardChart.edges.push(transition);
                         }
                     }
@@ -275,8 +306,8 @@ export default function Board(props) {
                     }
                 };
 
-                boardData.statesDict = statesDict;
-                boardData.transitionsDict = transitionsDict;
+                boardData.statesDict = newStatesDict;
+                boardData.transitionsDict = newTransitionsDict;
                 setBoard((prevBoard) => ({ ...prevBoard, data: boardData, chart: boardChart }));
             })
     };
@@ -307,8 +338,9 @@ export default function Board(props) {
             <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} isSensing={isSensing} />
             <div className="main-board-div">
                 <div className="top-side-div">
-                    <h5>You are now at {stages[step]} Stage. {hints[step]}</h5>
-                    {(() => {
+                    <h6>You are now at the {stages[step]} Stage.</h6>
+                    {/* <h5>You are now at {stages[step]} Stage. {hints[step]}</h5> */}
+                    {/* {(() => {
                         switch (step) {
                             case 0:
                                 return (<Button variant="contained" color={isSensing === -1 ? "primary" : "secondary"} onClick={handleClickExplore}>{isSensing === -1 ? "Explore" : "End Explore"}</Button>)
@@ -319,7 +351,7 @@ export default function Board(props) {
                             default:
                                 break;
                         }
-                    })()}
+                    })()} */}
                 </div>
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={3} className="left-side-div">
@@ -342,7 +374,7 @@ export default function Board(props) {
                         }
                     </Grid>
                     <Grid item xs={3} className="right-side-div" zeroMinWidth>
-                        <InteractionRecorder/>
+                        <InteractionRecorder createNode={createNode}/>
                     </Grid>
                 </Grid>
             </div>

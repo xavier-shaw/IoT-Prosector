@@ -5,9 +5,11 @@ import VideocamOffIcon from '@mui/icons-material/VideocamOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckIcon from '@mui/icons-material/Check';
 import Webcam from 'react-webcam';
+import { v4 as uuidv4} from "uuid";
 import "./InteractionRecorder.css";
 
 function InteractionRecorder(props) {
+    const { createNode } = props;
     const webcamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const [camera, setCamera] = useState("");
@@ -65,15 +67,17 @@ function InteractionRecorder(props) {
             "dataavailable",
             handleDataAvailable
         );
+        let node_idx = uuidv4();
         mediaRecorderRef.current.start();
 
         // then tell hardware to collect data => wait 1 second to mitigate human latency
         setTimeout(() => {
             axios
-                .get(window.HARDWARE_ADDRESS + "/powerSensing")
+                .get(window.HARDWARE_ADDRESS + "/powerSensing/" + node_idx)
                 .then((resp) => {
-                    console.log("power data", resp.data);
                     endRecording();
+                    alert(resp.message);
+                    createNode(node_idx, status, action);
                 })
         }, 1000);
     };
@@ -104,7 +108,7 @@ function InteractionRecorder(props) {
 
     return (
         <div className='interaction-recorder-div'>
-            <h3>Interaction Stage</h3>
+            <h3>Interaction Steps</h3>
             <div className='step-div'>
                 {steps.map((step, index) => (
                     <p key={index}>{step}</p>

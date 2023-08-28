@@ -279,14 +279,49 @@ async def remove_all_boards():
     return {"message": "delete all boards."}
 
 
-@app.get("/powerSensing")
-async def power_sensing():
+@app.get("/powerSensing/")
+async def power_sensing(node_idx: str):
     # TODO: return data (e.g. avg, max, and min current) to frontend
     # or just store it to database? sounds more efficient, and we don't need the data in interaction stage
-    # the reason why is to keep the recording sync with data collection 
-    pass
+    # the reason why is to keep the recording sync with data collection
+    sample_num = 50
+    avg_currents, max_currents, min_currents, times = power_check(sample_num)
+    store_power_data(node_idx, max_currents, avg_currents, min_currents, times)
+    return {"message": "Interaction is recorded!"}
 
 # ========================================= Functions =========================================================
+
+
+def power_check(sample_num):
+    avg_currents, max_currents, min_currents, times = [], [], [], []
+    ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
+    start_time = time.time()
+    for i in range(sample_num):
+        line = ser.readline()
+        if line:
+            info = line.decode().rstrip()
+            infos = info.split(",")
+            max_current = float(infos[0])
+            avg_current = float(infos[1])
+            min_current = float(infos[2])
+            avg_currents.append(avg_current)
+            max_currents.append(max_current)
+            min_currents.append(min_current)
+            times.append(time.time() - start_time)
+    ser.close()
+    print("duration: ", str(times[len(times) - 1] - times[0]))
+    return avg_currents, max_currents, min_currents, times
+
+
+def store_power_data(node_idx, max_currents, avg_currents, min_currents, times):
+    data = {
+        "node_idx": node_idx,
+        "max_currents": max_currents,
+        "avg_currents": avg_currents,
+        "min_currents": min_currents,
+        "times": times
+    }
+    create_data(jsonable_encoder(data))
 
 
 def calculate_distance(point1, point2):
@@ -324,7 +359,7 @@ def create_state(state):
 
 def create_data(data):
     app.database["iotdatas"].insert_one(data)
-    print(data)
+    print("store data into database")
 
 
 def sensing(device):

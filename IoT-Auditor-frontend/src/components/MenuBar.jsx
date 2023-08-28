@@ -39,7 +39,7 @@ export default function MenuBar(props) {
                                 inputWidth='300px'
                                 inputHeight='25px'
                                 inputMaxLength={50}
-                                labelFontWeight='normal'
+                                labelFontWeight='bold'
                                 inputFontWeight='normal'
                                 onFocusOut={onTitleChange}
                             />
