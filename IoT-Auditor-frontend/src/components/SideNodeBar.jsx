@@ -10,18 +10,18 @@ export default function SideNodeBar(props) {
 
     return (
         <div className='side-bar-div'>
-            <div className='system-node-div' onDragStart={(event) => onDragStart(event, 'systemNode')} draggable>
+            {/* <div className='system-node-div' onDragStart={(event) => onDragStart(event, 'systemNode')} draggable>
                 System Node
-            </div>
+            </div> */}
             <div className='mode-node-div' onDragStart={(event) => onDragStart(event, 'modeNode')} draggable>
                 Mode Node
             </div>
-            <div className='group-node-div' onDragStart={(event) => onDragStart(event, 'groupNode')} draggable>
+            {/* <div className='group-node-div' onDragStart={(event) => onDragStart(event, 'groupNode')} draggable>
                 Group Node
-            </div>
-            <div className='operation-node-div' onDragStart={(event) => onDragStart(event, 'stateNode')} draggable>
+            </div> */}
+            {/* <div className='operation-node-div' onDragStart={(event) => onDragStart(event, 'stateNode')} draggable>
                 Operation Node
-            </div>
+            </div> */}
         </div>
     );
 };

@@ -26,8 +26,8 @@ var boardRoutes = require('./api/routes/boardRoutes'); //importing route
 boardRoutes(app); //register the route
 var stateRoutes = require("./api/routes/stateRoutes");
 stateRoutes(app);
-var dataRoutes = require("./api/routes/dataRoutes");
-dataRoutes(app);
+var videoRoutes = require("./api/routes/videoRoutes");
+videoRoutes(app);
 var sharedRoutes = require("./api/routes/sharedRoutes");
 sharedRoutes(app);
 var predictRoutes = require("./api/routes/predictRoutes");

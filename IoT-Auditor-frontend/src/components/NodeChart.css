@@ -1,0 +1,15 @@
+.mode-node-div {
+    background: white;
+    border-left: 1rem solid #8a8a8a;
+    border-radius: 0.5rem;
+    box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    font-family: Helvetica;
+    font-weight: bold;
+    padding: 10px;
+    margin: 10px 10px;
+    height: 40px;
+    width: 150px;
+    border-color: #bfd7ff;
+}

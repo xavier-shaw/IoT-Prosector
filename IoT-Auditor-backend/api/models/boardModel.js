@@ -14,12 +14,12 @@ var BoardSchema = new Schema({
     default: Date.now
   },
   data: {
-    type: String,
-    default: '{}',
+    type: Object,
+    default: {instructions: []},
   },
   chart: {
-    type: String,
-    default: '{"nodes":[],"edges":[]}'
+    type: Object,
+    default: {nodes: [], edges: []}
   }
 });
 

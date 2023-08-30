@@ -12,6 +12,7 @@ import ModeNode from "./ModeNode";
 import { MarkerType } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
 import GroupNode from "./GroupNode";
+import "./NodeChart.css";
 
 const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
 
@@ -42,7 +43,7 @@ const NodeChart = forwardRef((props, ref) => {
 })
 
 const FlowChart = forwardRef((props, ref) => {
-    let { board, step } = props;
+    let { chart, setChart, step, setChartSelection } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -58,28 +59,31 @@ const FlowChart = forwardRef((props, ref) => {
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
 
     useEffect(() => {
-        if (board.hasOwnProperty("chart")) {
-            console.log("flow chart", board.chart);
-            setNodes([...board.chart.nodes]);
-            setEdges([...board.chart.edges]);
-            setViewport({ ...board.chart.viewport });
+        if (chart.hasOwnProperty("nodes")) {
+            setNodes([...chart.nodes]);
+            setEdges([...chart.edges]);
         }
-    }, [board]);
+    }, [chart]);
 
     useImperativeHandle(ref, () => ({
         updateAnnotation
     }))
 
     const updateAnnotation = () => {
-        const flowObj = reactFlowInstance.toObject();
-        return flowObj;
+        if (reactFlowInstance) {
+            const newChart = reactFlowInstance.toObject();
+            setChart(newChart);
+            console.log("update annotation")
+            return newChart;
+        }
     };
 
     function ListenToSelectionChange() {
         useOnSelectionChange({
             onChange: ({ nodes, edges }) => {
-                console.log('changed selection', nodes, edges);
-                // TODO: send this selection to the collage panel
+                let selection = { nodes: nodes, edges: edges };
+                setChartSelection(selection);
+                updateAnnotation();
             },
         });
 
@@ -112,6 +116,7 @@ const FlowChart = forwardRef((props, ref) => {
         }
         else if (type === "modeNode") {
             zIndex = 1;
+            nodeData["children"] = [];
             nodeStyle = {
                 width: "400px",
                 height: "250px",
@@ -119,7 +124,8 @@ const FlowChart = forwardRef((props, ref) => {
                 borderStyle: "solid",
                 padding: "10px",
                 borderRadius: "10px",
-                backgroundColor: "#e2fdff",
+                // backgroundColor: "#e2fdff",
+                backgroundColor: "#bfd7ff",
             }
         }
         else if (type === "groupNode") {
@@ -153,7 +159,7 @@ const FlowChart = forwardRef((props, ref) => {
         };
 
         const newNode = {
-            id: "node_" + uuidv4(),
+            id: uuidv4(),
             type: type,
             position: position,
             positionAbsolute: position,
@@ -258,11 +264,15 @@ const FlowChart = forwardRef((props, ref) => {
                 if (n.id === node.id) {
                     if (target) {
                         n.parentNode = target.id;
-                        // n.extent = "parent";
-                        n.position = { x: node.positionAbsolute.x - target.positionAbsolute.x, y: node.positionAbsolute.y - target.positionAbsolute.y }
+                        n.position = { x: node.positionAbsolute.x - target.positionAbsolute.x, y: node.positionAbsolute.y - target.positionAbsolute.y };
+                        target.data.children = [...target.data.children, n.id];
                     }
                     else {
-                        n.parentNode = "";
+                        if (n.parentNode) {
+                            let parent = newNodes.find((e) => e.id === n.parentNode);
+                            parent.data.children = parent.data.children.filter((e) => e.id === n.id);
+                        }
+                        n.parentNode = null;
                         n.position = { x: node.positionAbsolute.x, y: node.positionAbsolute.y };
                     }
                 }
@@ -287,7 +297,8 @@ const FlowChart = forwardRef((props, ref) => {
                             color = "#f9f7f3";
                             break;
                         case "modeNode":
-                            color = "#e2fdff";
+                            // color = "#e2fdff";
+                            color = "#bfd7ff";
                             break;
                         case "groupNode":
                             color = "#bfd7ff";
@@ -330,6 +341,11 @@ const FlowChart = forwardRef((props, ref) => {
         setEdges((eds) => addEdge(newEdge, eds))
     }, []);
 
+    const onDragStart = (event, nodeType) => {
+        event.dataTransfer.setData('application/reactflow', nodeType);
+        event.dataTransfer.effectAllowed = 'move';
+    };
+
     return (
         <div style={{ width: '100%', height: '100%', backgroundColor: "white" }} ref={reactFlowWrapper}>
             {step === 0 &&
@@ -341,9 +357,9 @@ const FlowChart = forwardRef((props, ref) => {
                     onInit={setReactFlowInstance}
                     fitView
                 >
-                    <Panel position="top-right">
+                    {/* <Panel position="top-right">
                         <button onClick={onLayout}>Layout</button>
-                    </Panel>
+                    </Panel> */}
                     <Background />
                     <Controls />
                 </ReactFlow>
@@ -366,13 +382,16 @@ const FlowChart = forwardRef((props, ref) => {
                     fitView
                 >
                     <Panel position="top-right">
-                        <button onClick={onLayout}>Layout</button>
+                        {/* <button onClick={onLayout}>Layout</button> */}
+                        <div className='mode-node-div' onDragStart={(event) => onDragStart(event, 'modeNode')} draggable>
+                            Mode Node
+                        </div>
                     </Panel>
                     <Background />
                     <Controls />
                 </ReactFlow>
             }
-            <ListenToSelectionChange/>
+            <ListenToSelectionChange />
         </div>
     )
 });
