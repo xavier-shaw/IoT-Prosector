@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+import asyncio
 from typing import List
 from dotenv import dotenv_values
 from pymongo import MongoClient
@@ -51,7 +52,7 @@ app.add_middleware(
 )
 
 # ====================================== GLOBAL VARIABLES ==================================================
-# ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
+ser = None
 listening = False
 data_thread = None
 
@@ -65,23 +66,35 @@ centroids = {}
 sample_num = 150
 group_cnt = 10
 
+def read_from_arduino():
+    print("Start reading from Arduino...")
+    global ser
+    ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
+    global avg_currents, max_currents, min_currents, times, listening
+    while True:
+        line = ser.readline()
+        if line and listening:
+            info = line.decode().rstrip()
+            infos = info.split(",")
+            max_current = float(infos[0])
+            avg_current = float(infos[1])
+            min_current = float(infos[2])
+            avg_currents.append(avg_current)
+            max_currents.append(max_current)
+            min_currents.append(min_current)
+            times.append(time.time() - start_time)
+
+data_thread = threading.Thread(target=read_from_arduino, daemon=True)
+data_thread.start()
+
 
 @app.on_event("startup")
-def startup_db_client():
+async def startup_db_client():
     app.client = MongoClient(uri, tlsCAFile=certifi.where())
     app.database = app.client[config["DB_NAME"]]
     print("Connected to the MongoDB database!")
     print(app.client)
     print(app.database)
-    global data_thread
-    if data_thread is None or not data_thread.is_alive():
-        data_thread = threading.Thread(target=read_from_arduino)
-        data_thread.daemon = True
-        data_thread.start()
-    # if predict_thread is None or not predict_thread.is_alive():
-    #     predict_thread = threading.Thread(target=predict)
-    #     predict_thread.daemon = True
-    #     predict_thread.start()
 
     # print("ready to ssh")
     # ssh = SSHClient()
@@ -98,36 +111,12 @@ def shutdown_db_client():
     ser.close()
     app.client.close()
 
-
-def read_from_arduino():
-    global avg_currents, max_currents, min_currents, times, listening
-    while True:
-        line = ser.readline()
-        if line and listening:
-            info = line.decode().rstrip()
-            infos = info.split(",")
-            max_current = float(infos[0])
-            avg_current = float(infos[1])
-            min_current = float(infos[2])
-            avg_currents.append(avg_current)
-            max_currents.append(max_current)
-            min_currents.append(min_current)
-            times.append(time.time() - start_time)
-
 # ========================================= Routes =========================================================
 
 
 @app.get("/")
 async def root():
     return {"message": "Here is the hardware end of IoT-Auditor!"}
-
-
-@app.get("/get")
-async def get_states_data():
-    states_data = app.database["iotstates"].find()
-    for state in states_data:
-        print(state)
-    return {"message": "hello"}
 
 
 @app.get("/get_data")
@@ -259,13 +248,6 @@ async def annotate_sensing(device: str):
         return {"message": "Predicting IoT device state is already running"}
 
 
-@app.get("/stop")
-async def stop_sensing():
-    global isSensing
-    isSensing = False
-    return {"message": "Stop sensing."}
-
-
 @app.get("/startlocal/")
 async def start_local_sensing(device: str):
     local_sensing(device)
@@ -371,18 +353,19 @@ def store_power_data(device, idx, max_currents, avg_currents, min_currents, time
 
 def build_dataset(device):
     board = app.database["boards"].find_one({"title": device})
-    nodes = board.chart.nodes
+    print(board)
+    nodes = board["chart"]["nodes"]
     collected_node = []
     labels = []
     dataset_X = []
     dataset_Y = []
 
-    group_nodes = [n for n in nodes if n.type is "modeNode"]
-    state_nodes = [n for n in nodes if n.type is "stateNode"]
+    group_nodes = [n for n in nodes if n["type"] == "modeNode"]
+    state_nodes = [n for n in nodes if n["type"] == "stateNode"]
 
     for group_node in group_nodes:
-        labels.append(group_node.data.label)
-        for child in group_node.data.children:
+        labels.append(group_node["data"]["label"])
+        for child in group_node["data"]["children"]:
             collected_node.append(child)
             features = get_features(device, child)
             for feature in features:
@@ -390,13 +373,13 @@ def build_dataset(device):
                 dataset_Y.append(len(labels) - 1)
 
     for state_node in state_nodes:
-        if state_node.id not in collected_node:
-            collected_node.append(state_node.id)
-            labels.append(state_node.data.label)
-            features = get_features(device, state_node.id)
+        if state_node["id"] not in collected_node:
+            collected_node.append(state_node["id"])
+            labels.append(state_node["data"]["label"])
+            features = get_features(device, state_node["id"])
             for feature in features:
                 dataset_X.append(feature)
-                dataset_Y.append(len(labels - 1))
+                dataset_Y.append(len(labels) - 1)
 
     dataset_X = np.array(dataset_X)
     dataset_Y = np.array(dataset_Y)
@@ -408,10 +391,10 @@ def get_features(device, idx):
     group_size = 5
     features = []
 
-    for i in range(0, len(avg_currents), 5):
+    for i in range(len(avg_currents)):
         start_idx = i * group_size
-        end_idx = (i + 1) * group_size if (i + 1) * \
-            group_size > len(avg_currents) else len(avg_currents)
+        if start_idx >= len(avg_currents): break
+        end_idx = (i + 1) * group_size if (i + 1) * group_size < len(avg_currents) else len(avg_currents)
         avgs = avg_currents[start_idx: end_idx]
         maxs = max_currents[start_idx: end_idx]
         mins = min_currents[start_idx: end_idx]
@@ -428,6 +411,7 @@ def get_features(device, idx):
 
 def get_data(device, state):
     data = app.database["iotdatas"].find_one({"device": device, "idx": state})
+    print(data)
     avg_currents = data["avg_currents"]
     max_currents = data["max_currents"]
     min_currents = data["min_currents"]
