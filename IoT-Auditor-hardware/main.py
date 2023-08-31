@@ -1,7 +1,8 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import asyncio
 from typing import List
 from dotenv import dotenv_values
@@ -303,14 +304,18 @@ async def stop_sensing(idx: str, device: str):
     return {"message": "Stop Recording!"}
 
 
-@app.get("/classification")
-async def classfication(device: str):
+class DataModel(BaseModel):
+    device: str
+    nodes: List[dict]
 
-    states, X, Y = build_dataset(device)
+@app.post("/classification")
+async def classfication(data: DataModel = Body(...)):
+    states, X, Y = build_dataset(data.device, data.nodes)
     clf, cms, acc = classify(states, X, Y)
     resp = {
         "accuracy": round(acc, 3),
-        "confusionMatrix": cms.tolist()
+        "confusionMatrix": cms,
+        "states": states
     }
 
     return JSONResponse(content=jsonable_encoder(resp))
@@ -351,10 +356,7 @@ def store_power_data(device, idx, max_currents, avg_currents, min_currents, time
     create_data(jsonable_encoder(data))
 
 
-def build_dataset(device):
-    board = app.database["boards"].find_one({"title": device})
-    print(board)
-    nodes = board["chart"]["nodes"]
+def build_dataset(device, nodes):
     collected_node = []
     labels = []
     dataset_X = []
@@ -364,13 +366,15 @@ def build_dataset(device):
     state_nodes = [n for n in nodes if n["type"] == "stateNode"]
 
     for group_node in group_nodes:
-        labels.append(group_node["data"]["label"])
-        for child in group_node["data"]["children"]:
-            collected_node.append(child)
-            features = get_features(device, child)
-            for feature in features:
-                dataset_X.append(feature)
-                dataset_Y.append(len(labels) - 1)
+        children = group_node["data"]["children"]
+        if len(children) > 0:
+            labels.append(group_node["data"]["label"])
+            for child in children:
+                collected_node.append(child)
+                features = get_features(device, child)
+                for feature in features:
+                    dataset_X.append(feature)
+                    dataset_Y.append(len(labels) - 1)
 
     for state_node in state_nodes:
         if state_node["id"] not in collected_node:
@@ -445,9 +449,12 @@ def classify(states, X, Y):
         acc_scores.append(acc)
 
     avg_accuracy = np.mean(acc_scores)
-    cms = cms / group_cnt
+    avg_cm = []
+    for row in cms:
+        row_sum = np.sum(row)
+        avg_cm.append([format(x / row_sum, ".2f") for x in row])
 
-    return clf, cms, avg_accuracy
+    return clf, avg_cm, avg_accuracy
 
 
 # ===========================================================================================================

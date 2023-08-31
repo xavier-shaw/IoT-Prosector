@@ -16,7 +16,7 @@ export default function AnnotateEdge(props) {
     let [transitionName, setTransitionName] = useState(l);
     let [editable, setEditable] = useState(false);
 
-    const [edgePath, labelX, labelY] = getBezierPath({
+    const [edgePath, labelX, labelY] = getSmoothStepPath({
         sourceX,
         sourceY,
         sourcePosition,
@@ -46,7 +46,7 @@ export default function AnnotateEdge(props) {
                     id={id + "_label"}
                     style={{
                         position: 'absolute',
-                        transform: `translate(-50%, -50%) translate(${labelX + (targetX - labelX) / 2}px,${labelY + (targetY - labelY) / 2}px)`,
+                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
                         fontSize: 14,
                         fontWeight: 'bold',
                         pointerEvents: 'all',

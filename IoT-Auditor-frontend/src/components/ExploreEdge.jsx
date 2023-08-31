@@ -1,6 +1,6 @@
 import { Chip, TextField } from '@mui/material';
 import React, { useEffect, useState } from 'react';
-import { getBezierPath, EdgeLabelRenderer, BaseEdge } from 'reactflow';
+import { getBezierPath, EdgeLabelRenderer, BaseEdge, getSmoothStepPath } from 'reactflow';
 
 export default function ExploreEdge(props) {
     let { sourceX,
@@ -13,7 +13,7 @@ export default function ExploreEdge(props) {
         style,
         id, data } = props;
 
-    const [edgePath, labelX, labelY] = getBezierPath({
+    const [edgePath, labelX, labelY] = getSmoothStepPath({
         sourceX,
         sourceY,
         sourcePosition,
@@ -30,7 +30,7 @@ export default function ExploreEdge(props) {
                     id={id + "_label"}
                     style={{
                         position: 'absolute',
-                        transform: `translate(-50%, -50%) translate(${labelX + (targetX - labelX) / 2}px,${labelY + (targetY - labelY) / 2}px)`,
+                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
                         fontSize: 14,
                         fontWeight: 'bold',
                         pointerEvents: 'all',

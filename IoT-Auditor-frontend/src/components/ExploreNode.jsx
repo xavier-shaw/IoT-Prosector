@@ -6,9 +6,9 @@ export default function ExploreNode(props) {
 
   return (
     <>
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={Position.Left} />
       <h5 style={{fontWeight: 'bold'}} className='nodrag'>{data.label}</h5>
-      <Handle type="source" position={Position.Bottom} />
+      <Handle type="source" position={Position.Right} />
     </>
   );
 }

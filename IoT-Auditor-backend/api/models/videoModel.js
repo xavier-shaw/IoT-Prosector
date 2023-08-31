@@ -5,7 +5,7 @@ var VideoSchema = new Schema({
   device: {
     type: String,
   },
-  node_id: {
+  idx: {
     type: String,
   },
   video: {

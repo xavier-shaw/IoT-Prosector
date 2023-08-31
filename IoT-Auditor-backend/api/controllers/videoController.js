@@ -11,7 +11,7 @@ exports.upload_video_by_id = function (req, res) {
 };
 
 exports.get_video_by_id = function (req, res) {
-    Video.find({ node_id: req.params.id }).then((video) => {
+    Video.find({ idx: req.params.id }).then((video) => {
         res.json(video);
     })
         .catch((error) => {
