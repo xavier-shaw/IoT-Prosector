@@ -10,12 +10,12 @@ import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
 import { MarkerType } from "reactflow";
-import { Button, Grid, Typography } from "@mui/material";
-import SideNodeBar from "../components/SideNodeBar";
+import { Button, Grid, Typography, Dialog, DialogActions, DialogTitle, } from "@mui/material";
+import CheckIcon from '@mui/icons-material/Check';
 import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
 import CollagePanel from "../components/CollagePanel";
-import { stateNodeStyle } from "../shared/chartStyle";
+import { childNodeoffsetY, nodeMarginX, nodeMarginY, nodeOffsetX, stateNodeStyle } from "../shared/chartStyle";
 
 export default function Board(props) {
     let params = useParams();
@@ -27,6 +27,7 @@ export default function Board(props) {
     const [instructions, setInstructions] = useState([]);
     const [prevNode, setPrevNode] = useState(null);
     const [chartSelection, setChartSelection] = useState({ nodes: [], edges: [] });
+    const [openDialog, setOpenDiaglog] = useState(false);
     const nodeChartRef = useRef(null);
     const collagePanelRef = useRef(null);
 
@@ -66,12 +67,22 @@ export default function Board(props) {
         newBoard.data.instructions = newInstructions;
         setBoard(newBoard);
         console.log("ready to update board", newBoard);
-        axios
+        await axios
             .post(window.BACKEND_ADDRESS + "/boards/saveBoard", { boardId: board._id, updates: newBoard })
             .then((resp) => {
                 console.log("successfully update board", resp.data);
             });
     };
+
+    const startCollage = async () => {
+        await nodeChartRef.current.collageStates();
+        setOpenDiaglog(true);
+    }
+
+    const endCollage = async () => {
+        await onSave();
+        setOpenDiaglog(false);
+    }
 
     const createNode = (nodeIdx, status, action, edgeIdx) => {
         let newChart = { ...chart };
@@ -82,7 +93,7 @@ export default function Board(props) {
         if (status === "Action") {
             let newTransition = createEdge(edgeIdx, prevNode.id, nodeIdx, action);
             newChart.edges.push(newTransition);
-            position = { x: prevNode.position.x, y: prevNode.position.y + 250 };
+            position = { x: prevNode.position.x, y: prevNode.position.y + childNodeoffsetY };
             if (action === "") {
                 action = "Action";
             }
@@ -90,7 +101,7 @@ export default function Board(props) {
         else {
             // base node
             let baseNodeCnt = (newChart.nodes.filter((n) => n.data.status === "Base")).length;
-            position = { x: 10 + 200 * baseNodeCnt, y: 10 };
+            position = { x: nodeMarginX + nodeOffsetX * baseNodeCnt, y: nodeMarginY };
             action = "Base";
         }
 
@@ -132,10 +143,6 @@ export default function Board(props) {
 
         return transition;
     };
-
-    const updateConfusionMatrix = () => {
-        collagePanelRef.current.classifyStates();
-    }
 
     // const deletePrevHightlight = (prevStateIdx, curStateIdx) => {
     //     let boardChart = board.chart;
@@ -194,6 +201,19 @@ export default function Board(props) {
             <div className="main-board-div">
                 <div className="top-side-div">
                     <h6>You are now at the {stages[step]} Stage.</h6>
+                    {step === 1 &&
+                        <>
+                            <h6>&nbsp;First </h6>
+                            <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={startCollage}>Collage</Button>
+                            <h6>, then drag the states to debug.</h6>
+                        </>
+                    }
+                    <Dialog open={openDialog} onClose={() => { setOpenDiaglog(false) }}>
+                        <DialogTitle>Collage process completed.</DialogTitle>
+                        <DialogActions>
+                            <Button className='mt-2' variant="outlined" color="success" onClick={endCollage} startIcon={<CheckIcon />}>Confirm</Button>
+                        </DialogActions>
+                    </Dialog>
                 </div>
                 {(() => {
                     switch (step) {
@@ -204,8 +224,8 @@ export default function Board(props) {
                                         <InstructionTable instructions={instructions} setInstructions={setInstructions} />
                                     </Grid>
                                     <Grid item xs={6} className="panel-div">
-                                        <NodeChart chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                                            updateConfusionMatrix={updateConfusionMatrix} setChartSelection={setChartSelection} />
+                                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
+                                            setChartSelection={setChartSelection} />
                                     </Grid>
                                     <Grid item xs={3} className="panel-div" zeroMinWidth>
                                         <InteractionRecorder board={board} createNode={createNode} />
@@ -216,11 +236,25 @@ export default function Board(props) {
                             return (
                                 <Grid container columnSpacing={2} className="bottom-side-div">
                                     <Grid item xs={7} className="panel-div">
-                                        <NodeChart chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                                            updateConfusionMatrix={updateConfusionMatrix} setChartSelection={setChartSelection} />
+                                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
+                                            setChartSelection={setChartSelection} />
                                     </Grid>
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
                                         <CollagePanel ref={collagePanelRef} board={board} chart={chart} chartSelection={chartSelection} />
+                                    </Grid>
+                                </Grid>
+                            );
+                        case 2:
+                            return (
+                                <Grid container columnSpacing={2} className="bottom-side-div">
+                                    <Grid item xs={7} className="panel-div">
+                                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
+                                            setChartSelection={setChartSelection} />
+                                    </Grid>
+                                    <Grid item xs={5} className="panel-div" zeroMinWidth>
+                                        <div>
+
+                                        </div>
                                     </Grid>
                                 </Grid>
                             )

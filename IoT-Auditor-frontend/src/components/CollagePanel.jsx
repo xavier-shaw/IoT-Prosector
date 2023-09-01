@@ -1,15 +1,18 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import * as d3 from "d3";
 import "./CollagePanel.css";
-import { Grid } from "@mui/material";
+import { Grid, Skeleton } from "@mui/material";
 import axios from "axios";
 
 const CollagePanel = forwardRef((props, ref) => {
     let { board, chart, chartSelection } = props;
     const [selectedNode, setSelectedNode] = useState(null);
     const [selectedNodeVideo, setSelectedNodeVideo] = useState(null);
-    const videoWidth = 250;
-    const videoHeight = 250;
+    const [prevNode, setPrevNode] = useState(null);
+    const [prevNodeVideo, setPrevNodeVideo] = useState(null);
+    const [actionVideo, setActionVideo] = useState(null);
+    const videoWidth = 200;
+    const videoHeight = 200;
 
     useImperativeHandle(ref, () => ({
         classifyStates
@@ -20,23 +23,40 @@ const CollagePanel = forwardRef((props, ref) => {
     }, [chart]);
 
     useEffect(() => {
-        if (chartSelection.nodes[0]?.type === "stateNode") {
-            let node_id = chartSelection.nodes[0].id;
-            let stateInfo = chart.nodes.find((e) => e.id === node_id);
-            setSelectedNode(stateInfo);
-            axios
-                .get(window.BACKEND_ADDRESS + "/video/get/" + node_id)
-                .then((resp) => {
-                    setSelectedNodeVideo(resp.data[0].video);
-                })
+        if (chartSelection.type === "stateNode") {
+            let node_id = chartSelection.id;
+            let prev_id = chartSelection.data.prev;
+            let curNode = chart.nodes.find((e) => e.id === node_id);
+            setSelectedNode(curNode);
+            setVideoById(node_id, setSelectedNodeVideo);
+            if (prev_id) {
+                let prevNode = chart.nodes.find((e) => e.id === prev_id);
+                setPrevNode(prevNode);
+                setVideoById(prev_id, setPrevNodeVideo);
+                let edge_id = chart.edges.find((e) => e.source === prev_id && e.target === node_id).id;
+                setVideoById(edge_id, setActionVideo);
+            }
+            else {
+                setPrevNode(null);
+                setPrevNodeVideo(null);
+                setActionVideo(null);
+            }
         }
     }, [chartSelection]);
+
+    const setVideoById = (id, setStateFunction) => {
+        axios
+            .get(window.BACKEND_ADDRESS + "/video/get/" + id)
+            .then((resp) => {
+                setStateFunction(resp.data[0].video);
+            })
+    }
 
     const classifyStates = () => {
         axios
             .post(window.HARDWARE_ADDRESS + "/classification", {
-                    device: board.title,
-                    nodes: chart.nodes
+                device: board.title,
+                nodes: chart.nodes
             })
             .then((resp) => {
                 let acc = resp.data.accuracy;
@@ -126,6 +146,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr('x', (d, i) => i * cellSize + cellSize / 2)
             .attr('y', (d, i) => cellSize / 2)
             .attr('text-anchor', 'middle')
+            .attr('font-size', 12)
             .attr('dy', '.35em')
             .text(d => d);
 
@@ -138,7 +159,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("y", (d, i) => offsetY + i * cellSize + cellSize / 2)
             .attr("alignment-baseline", "middle")
             .attr("text-anchor", "end")
-            .attr("font-size", 12)
+            .attr("font-size", 16)
 
         svg.selectAll('.predict-states')
             .data(states)
@@ -148,7 +169,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("x", (d, i) => offsetX + i * cellSize + cellSize / 2)
             .attr("y", offsetY + legendHeight + labelOffset + 10)
             .attr("text-anchor", "end")
-            .attr("font-size", 12)
+            .attr("font-size", 16)
             .attr("transform", (d, i) => "rotate(" + labelRotate + " " + (offsetX + i * cellSize + cellSize / 2) + " " + (offsetY + legendHeight + labelOffset + 10) + ")")
 
 
@@ -207,30 +228,51 @@ const CollagePanel = forwardRef((props, ref) => {
 
     return (
         <div className="collage-panel-div">
-            <div id="confusion-matrix"></div>
+            <div id="confusion-matrix">
+                <Skeleton className="m-auto" variant="rectangular" animation="wave" width={600} height={550} />
+            </div>
 
             {/* TODO: 1. Stepwise Debugging => State Info (video + timewise-next-state + related action / labeled action) 
                       2. Group Node and Split Node => change should be demonstrated by confusion matrix  
             */}
             <h3>State Information</h3>
-            {selectedNode !== null && selectedNodeVideo != null &&
+            <div className="state-info-div">
+                {prevNode && prevNodeVideo &&
+                    <div>
+                        <h5>Previous State</h5>
+                        <h6>{prevNode.data.label}</h6>
+                        <video src={prevNodeVideo} controls width={videoWidth} height={videoHeight} />
+                    </div>
+                }
+                {prevNode && actionVideo &&
+                    <div>
+                        <h5>Action</h5>
+                        <h6>{selectedNode.data.action}</h6>
+                        <video src={actionVideo} controls width={videoWidth} height={videoHeight} />
+                    </div>
+                }
+                {!prevNode && 
+                    <h5>No previous state or action</h5>
+                }
+                {selectedNode && selectedNodeVideo &&
+                    <div>
+                        <h5>Current State</h5>
+                        <h6>{selectedNode.data.label}</h6>
+                        <video src={selectedNodeVideo} controls width={videoWidth} height={videoHeight} />
+                    </div>
+                }
+            </div>
+            {(selectedNode === null || selectedNodeVideo === null) &&
                 <Grid container columnSpacing={1}>
                     <Grid item xs={4}>
-                        <Grid container columnSpacing={1}>
-                            <Grid item>
-                                <h6>Label:</h6>
-                                <h6>Action:</h6>
-                                <h6>Previous:</h6>
-                            </Grid>
-                            <Grid item>
-                                <h6>{selectedNode.data.label}</h6>
-                                <h6>{selectedNode.data.action}</h6>
-                                <h6>{selectedNode.data.prev ? chart.nodes.find((e) => e.id === selectedNode.data.prev).data.label : "NaN"}</h6>
-                            </Grid>
-                        </Grid>
+                        {/* <Skeleton variant="h6" animation={false}/> */}
+                        <Skeleton className="m-auto" variant="rectangular" animation={false} width={videoWidth} height={videoHeight} />
                     </Grid>
-                    <Grid item xs={8}>
-                        <video src={selectedNodeVideo} controls width={videoWidth} height={videoHeight} />
+                    <Grid item xs={4}>
+                        <Skeleton className="m-auto" variant="rectangular" animation={false} width={videoWidth} height={videoHeight} />
+                    </Grid>
+                    <Grid item xs={4}>
+                        <Skeleton className="m-auto" variant="rectangular" animation={false} width={videoWidth} height={videoHeight} />
                     </Grid>
                 </Grid>
             }

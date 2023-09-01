@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import ReactFlow, { Background, Controls, useEdgesState, useNodesState, useOnSelectionChange, Panel, useReactFlow, ReactFlowProvider, addEdge, getIncomers, getOutgoers, getConnectedEdges } from 'reactflow';
+import ReactFlow, { Background, Controls, useEdgesState, useNodesState, Panel, useReactFlow, ReactFlowProvider, addEdge, getIncomers, getOutgoers, getConnectedEdges } from 'reactflow';
 import Dagre from 'dagre';
 import 'reactflow/dist/style.css';
 import { cloneDeep } from 'lodash';
@@ -7,13 +7,12 @@ import ExploreNode from "./ExploreNode";
 import AnnotateNode from "./AnnotateNode";
 import ExploreEdge from "./ExploreEdge";
 import AnnotateEdge from "./AnnotateEdge";
-import SystemNode from "./SystemNode";
 import ModeNode from "./ModeNode";
 import { MarkerType } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
-import GroupNode from "./GroupNode";
 import "./NodeChart.css";
-import { childNodeMarginY, childNodeoffsetX, childNodeoffsetY, modeNodeStyle, stateNodeStyle } from "../shared/chartStyle";
+import { childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, modeNodeStyle, nodeMarginX, nodeMarginY, nodeOffsetX, stateNodeStyle } from "../shared/chartStyle";
+import axios from "axios";
 
 const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
 
@@ -44,16 +43,16 @@ const NodeChart = forwardRef((props, ref) => {
 })
 
 const FlowChart = forwardRef((props, ref) => {
-    let { chart, setChart, step, updateConfusionMatrix, setChartSelection } = props;
+    let { board, chart, setChart, step, setChartSelection } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
     const dragRef = useRef(null);
+    const [onDragging, setOnDragging] = useState(false);
     const [target, setTarget] = useState(null);
-    const [needUpdate, setNeedUpdate] = useState(false);
-    const nodeTypes_explore = useMemo(() => ({ stateNode: ExploreNode, systemNode: SystemNode, modeNode: ModeNode, groupNode: GroupNode }), []);
-    const nodeTypes_annotate = useMemo(() => ({ stateNode: AnnotateNode, systemNode: SystemNode, modeNode: ModeNode, groupNode: GroupNode }), []);
+    const nodeTypes_explore = useMemo(() => ({ stateNode: ExploreNode, modeNode: ModeNode }), []);
+    const nodeTypes_annotate = useMemo(() => ({ stateNode: AnnotateNode, modeNode: ModeNode }), []);
     const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
 
@@ -64,35 +63,56 @@ const FlowChart = forwardRef((props, ref) => {
         }
     }, [chart]);
 
-    // useEffect(() => {
-    //     if (needUpdate) {
-    //         updateAnnotation();
-    //     }
-    // }, [needUpdate]);
-
     useImperativeHandle(ref, () => ({
-        updateAnnotation
-    }))
+        updateAnnotation,
+        collageStates
+    }));
+
+    const collageStates = async () => {
+        await axios
+            .post(window.HARDWARE_ADDRESS + "/collage", {
+                device: board.title,
+                nodes: nodes
+            })
+            .then((resp) => {
+                let collages = resp.data.collages;
+                let node_collage_dict = resp.data.node_collage_dict;
+                let newNodes = [...nodes];
+                let newEdges = [...edges];
+
+                for (const collage of collages) {
+                    let collage_node = addNewNode({ x: nodeMarginX + nodeOffsetX * collages.indexOf(collage), y: nodeMarginY }, "modeNode");
+                    collage_node.data.label += " " + collages.indexOf(collage);
+                    for (const [nid, cid] of Object.entries(node_collage_dict)) {
+                        if (cid === collage) {
+                            let node = newNodes.find((n) => n.id === nid);
+                            collage_node.data.children = [...collage_node.data.children, node.id];
+                            node.parentNode = collage_node.id;
+                            node.position = { x: childNodeoffsetX, y: childNodeMarginY + (collage_node.data.children.length - 1) * childNodeoffsetY };
+                            if (collage_node.data.children.length > 1) {
+                                collage_node.style = { ...collage_node.style, height: parseInt(collage_node.style.height.slice(0, -2)) + childNodeoffsetY + "px" };
+                            }
+                        }
+                    };
+                    newEdges = hiddenInsideEdges(newEdges, collage_node.data.children);
+                    newNodes.push(collage_node);
+                };
+
+                setNodes(newNodes);
+                setEdges(newEdges);
+            })
+    };
 
     const updateAnnotation = () => {
-        if (reactFlowInstance) {
-            const newChart = reactFlowInstance.toObject();
-            setChart(newChart);
-            console.log("update annotation")
-            return newChart;
-        }
+        const newChart = reactFlowInstance.toObject();
+        setChart(newChart);
+        console.log("update annotation")
+        return newChart;
     };
 
-    function ListenToSelectionChange() {
-        useOnSelectionChange({
-            onChange: ({ nodes, edges }) => {
-                let selection = { nodes: nodes, edges: edges };
-                setChartSelection(selection);
-            },
-        });
-
-        return null;
-    };
+    const onNodeClick = (evt, node) => {
+        setChartSelection(node);
+    }
 
     const onLayout = useCallback(() => {
         const layouted = getLayoutedElements(nodes, edges, { direction: "LR" });
@@ -105,17 +125,11 @@ const FlowChart = forwardRef((props, ref) => {
     const addNewNode = (position, type) => {
         let zIndex = 0;
         let nodeStyle = {};
-        let nodeData = { label: `${type} node` };
+        let nodeData = { label: "Group State"};
 
-        if (type === "modeNode") {
-            zIndex = 1;
-            nodeData["children"] = [];
-            nodeStyle = modeNodeStyle
-        }
-        else {
-            zIndex = 3;
-            nodeStyle = stateNodeStyle
-        };
+        zIndex = 1;
+        nodeData["children"] = [];
+        nodeStyle = modeNodeStyle;
 
         const newNode = {
             id: uuidv4(),
@@ -160,10 +174,12 @@ const FlowChart = forwardRef((props, ref) => {
     );
 
     const onNodeDragStart = (evt, node) => {
+        console.log("start")
         dragRef.current = node;
     };
 
     const onNodeDrag = (evt, node) => {
+        setOnDragging(true);
         // calculate the center point of the node from position and dimensions
         const centerX = node.positionAbsolute.x + node.width / 2;
         const centerY = node.positionAbsolute.y + node.height / 2;
@@ -189,9 +205,13 @@ const FlowChart = forwardRef((props, ref) => {
     };
 
     const onNodeDragStop = (evt, node) => {
+        if (!onDragging) {
+            dragRef.current = null;
+            return;
+        }
+
         let newNodes = [...nodes];
         let newEdges = [...edges];
-        let update = false;
 
         if (target) {
             newNodes.map((n) => {
@@ -199,7 +219,6 @@ const FlowChart = forwardRef((props, ref) => {
                     n.parentNode = target.id;
                     let parent = newNodes.find((e) => e.id === target.id);
                     if (!parent.data.children.includes(n.id)) {
-                        update = true;
                         newEdges = revealOwnEdges(newEdges, node.id);
                         parent.data.children = [...parent.data.children, n.id];
                         n.position = { x: childNodeoffsetX, y: childNodeMarginY + (parent.data.children.length - 1) * childNodeoffsetY };
@@ -207,6 +226,9 @@ const FlowChart = forwardRef((props, ref) => {
                             parent.style = { ...parent.style, height: parseInt(parent.style.height.slice(0, -2)) + childNodeoffsetY + "px" };
                             newEdges = hiddenInsideEdges(newEdges, parent.data.children);
                         }
+                    }
+                    else {
+                        n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
                     }
                 }
                 return n;
@@ -223,9 +245,8 @@ const FlowChart = forwardRef((props, ref) => {
                             for (const child of parent.data.children) {
                                 let childNode = newNodes.find((e) => e.id === child);
                                 childNode.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(child) * childNodeoffsetY };
-                            }                            
+                            }
                         }
-                        update = true;
                     }
                     n.parentNode = null;
                     n.position = { x: node.positionAbsolute.x, y: node.positionAbsolute.y };
@@ -238,8 +259,8 @@ const FlowChart = forwardRef((props, ref) => {
         setNodes(newNodes);
         setEdges(newEdges);
         setTarget(null);
+        setOnDragging(false);
         dragRef.current = null;
-        setNeedUpdate(update);
     };
 
     const revealOwnEdges = (edges, idx) => {
@@ -269,7 +290,7 @@ const FlowChart = forwardRef((props, ref) => {
         setNodes((nodes) =>
             nodes.map((node) => {
                 if (node.id === target?.id) {
-                    node.style = { ...node.style, backgroundColor: "lightyellow" };
+                    node.style = { ...node.style, backgroundColor: highlightColor };
                 } else {
                     let color;
                     switch (node.type) {
@@ -348,19 +369,32 @@ const FlowChart = forwardRef((props, ref) => {
                     onNodeDragStart={onNodeDragStart}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
+                    onNodeClick={onNodeClick}
                     onConnect={onConnect}
                     fitView
                 >
                     <Panel position="top-right">
                         <div className='mode-node-div' onDragStart={(event) => onDragStart(event, 'modeNode')} draggable>
-                            Mode Node
+                            Group State
                         </div>
                     </Panel>
                     <Background />
                     <Controls />
                 </ReactFlow>
             }
-            <ListenToSelectionChange />
+            {step === 2 &&
+                <ReactFlow
+                    nodeTypes={nodeTypes_explore}
+                    edgeTypes={edgeTypes_explore}
+                    nodes={nodes}
+                    edges={edges}
+                    onInit={setReactFlowInstance}
+                    fitView
+                >
+                    <Background />
+                    <Controls />
+                </ReactFlow>
+            }
         </div>
     )
 });

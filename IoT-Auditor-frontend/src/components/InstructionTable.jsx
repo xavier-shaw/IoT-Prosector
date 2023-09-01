@@ -82,7 +82,7 @@ function InstructionTable(props) {
 
     return (
         <TableContainer component={Paper} sx={{ maxWidth: "100%" }}>
-            <Table>
+            <Table stickyHeader>
                 <TableHead>
                     <TableRow>
                         <TableCell align="center" sx={{ fontWeight: "bold" }}>Function</TableCell>

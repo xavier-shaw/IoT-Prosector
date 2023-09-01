@@ -24,3 +24,9 @@ export const modeNodeStyle = {
 export const childNodeoffsetX = 50;
 export const childNodeoffsetY = 100;
 export const childNodeMarginY = 60;
+
+export const nodeMarginX = 10;
+export const nodeMarginY = 10;
+export const nodeOffsetX = 500;
+
+export const highlightColor = "lightyellow";

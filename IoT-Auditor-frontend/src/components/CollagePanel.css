@@ -4,3 +4,11 @@
     padding: 15px;
     background-color: white;
 }
+
+.state-info-div {
+    display: flex;
+    flex-direction: row;
+    padding: 10px;
+    align-items: center;
+    justify-content: space-evenly;
+}

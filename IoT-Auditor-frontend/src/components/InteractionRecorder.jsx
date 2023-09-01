@@ -92,7 +92,7 @@ function InteractionRecorder(props) {
                 console.log(resp.message);
                 mediaRecorderRef.current.stop();
                 if (recording === "state") {
-                    createNode(newIdx, status, action, prevIdx);
+                    createNode(newIdx, status, action, status === "Base"? null: prevIdx);
                 }
                 setOpenDiaglog(true);
                 setPrevIdx(newIdx);
