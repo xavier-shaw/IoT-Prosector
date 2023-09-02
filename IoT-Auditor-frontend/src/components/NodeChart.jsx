@@ -75,16 +75,15 @@ const FlowChart = forwardRef((props, ref) => {
                 nodes: nodes
             })
             .then((resp) => {
-                let collages = resp.data.collages;
+                let group_cnt = resp.data.group_cnt;
                 let node_collage_dict = resp.data.node_collage_dict;
                 let newNodes = [...nodes];
                 let newEdges = [...edges];
-
-                for (const collage of collages) {
-                    let collage_node = addNewNode({ x: nodeMarginX + nodeOffsetX * collages.indexOf(collage), y: nodeMarginY }, "modeNode");
-                    collage_node.data.label += " " + collages.indexOf(collage);
+                for (let index = 1; index <= group_cnt; index++) {
+                    let collage_node = addNewNode({ x: nodeMarginX + nodeOffsetX * index, y: nodeMarginY }, "modeNode");
+                    collage_node.data.label += " " + index;
                     for (const [nid, cid] of Object.entries(node_collage_dict)) {
-                        if (cid === collage) {
+                        if (cid === index) {
                             let node = newNodes.find((n) => n.id === nid);
                             collage_node.data.children = [...collage_node.data.children, node.id];
                             node.parentNode = collage_node.id;

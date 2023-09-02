@@ -27,9 +27,14 @@ export default function Board(props) {
     const [instructions, setInstructions] = useState([]);
     const [prevNode, setPrevNode] = useState(null);
     const [chartSelection, setChartSelection] = useState({ nodes: [], edges: [] });
+    const [chainNum, setChainNum] = useState(0);
+    const [status, setStatus] = useState("start");
     const [openDialog, setOpenDiaglog] = useState(false);
+    const [updateMatrix, setUpdateMatrix] = useState(false);
+
     const nodeChartRef = useRef(null);
     const collagePanelRef = useRef(null);
+    const interactionRecorderRef = useRef(null);
 
     useEffect(() => {
         axios
@@ -44,6 +49,12 @@ export default function Board(props) {
         return () => {
         }
     }, [params.boardId]);
+
+    useEffect(() => {
+        if (chart.hasOwnProperty("nodes")) {
+            setChainNum(chart.nodes.filter((n) => n.data.status === "base state").length);
+        }
+    }, [chart])
 
     const handleClickNext = async () => {
         await onSave();
@@ -74,48 +85,48 @@ export default function Board(props) {
             });
     };
 
+    const addAction = (action) => {
+        interactionRecorderRef.current.setAction(action);
+        interactionRecorderRef.current.setOpenActionDialog(true);
+    };
+
     const startCollage = async () => {
         await nodeChartRef.current.collageStates();
         setOpenDiaglog(true);
     }
 
-    const endCollage = async () => {
-        await onSave();
+    const endCollage = () => {
+        nodeChartRef.current.updateAnnotation();
         setOpenDiaglog(false);
     }
 
-    const createNode = (nodeIdx, status, action, edgeIdx) => {
+    const createNode = (nodeIdx, status, state, action, edgeIdx) => {
         let newChart = { ...chart };
-        let index = newChart.nodes.length;
         let position;
 
         // create edge from prev node
-        if (status === "Action") {
+        if (status === "state") {
             let newTransition = createEdge(edgeIdx, prevNode.id, nodeIdx, action);
             newChart.edges.push(newTransition);
             position = { x: prevNode.position.x, y: prevNode.position.y + childNodeoffsetY };
-            if (action === "") {
-                action = "Action";
-            }
         }
-        else {
-            // base node
-            let baseNodeCnt = (newChart.nodes.filter((n) => n.data.status === "Base")).length;
-            position = { x: nodeMarginX + nodeOffsetX * baseNodeCnt, y: nodeMarginY };
-            action = "Base";
+        else{
+            // status = "base state" => base node
+            position = { x: nodeMarginX + nodeOffsetX * chainNum, y: nodeMarginY };
+            action = "base state action";
         }
 
-        let state = {
+        let newState = {
             id: nodeIdx,
             type: "stateNode",
             position: position,
             positionAbsolute: position,
-            data: { label: "State " + index, status: status, action: action, prev: prevNode ? prevNode.id : null },
+            data: { label: state, status: status, action: action, prev: prevNode ? prevNode.id : null },
             style: stateNodeStyle,
             zIndex: 3
         };
-        newChart.nodes.push(state);
-        setPrevNode(state);
+        newChart.nodes.push(newState);
+        setPrevNode(newState);
         setChart(newChart);
     };
 
@@ -220,15 +231,18 @@ export default function Board(props) {
                         case 0:
                             return (
                                 <Grid container columnSpacing={2} className="bottom-side-div">
-                                    <Grid item xs={3} className="table-div">
-                                        <InstructionTable instructions={instructions} setInstructions={setInstructions} />
-                                    </Grid>
-                                    <Grid item xs={6} className="panel-div">
+                                    <Grid item xs={7} className="panel-div">
                                         <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
                                             setChartSelection={setChartSelection} />
                                     </Grid>
-                                    <Grid item xs={3} className="panel-div" zeroMinWidth>
-                                        <InteractionRecorder board={board} createNode={createNode} />
+                                    <Grid item xs={5} className="panel-div" zeroMinWidth>
+                                        <div className="table-div">
+                                            <InstructionTable instructions={instructions} setInstructions={setInstructions} addAction={addAction} status={status} />
+                                        </div>
+                                        <div className="action-div">
+                                            <InteractionRecorder ref={interactionRecorderRef} board={board} chart={chart} createNode={createNode}
+                                                chainNum={chainNum} setChainNum={setChainNum} status={status} setStatus={setStatus} />
+                                        </div>
                                     </Grid>
                                 </Grid>
                             );

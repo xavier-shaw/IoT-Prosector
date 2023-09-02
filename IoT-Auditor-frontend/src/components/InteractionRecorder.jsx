@@ -1,27 +1,32 @@
-import { Button, ButtonGroup, Chip, Dialog, DialogActions, DialogContent, DialogTitle, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Button, ButtonGroup, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import VideocamOffIcon from '@mui/icons-material/VideocamOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckIcon from '@mui/icons-material/Check';
+import CancelIcon from '@mui/icons-material/Cancel';
 import Webcam from 'react-webcam';
 import { v4 as uuidv4 } from "uuid";
 import "./InteractionRecorder.css";
 import axios from 'axios';
 
-function InteractionRecorder(props) {
-    const { board, createNode } = props;
+const InteractionRecorder = forwardRef((props, ref) => {
+    const { board, chart, createNode, chainNum, setChainNum, status, setStatus } = props;
     const webcamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const [camera, setCamera] = useState("");
-    const [screenshot, setScreenshot] = useState(null);
     const [recording, setRecording] = useState("");
     const [video, setVideo] = useState([]);
     const [newIdx, setNewIdx] = useState(null);
     const [prevIdx, setPrevIdx] = useState(null);
-    const [status, setStatus] = useState("Base");
-    const [action, setAction] = useState("");
-    const [openDialog, setOpenDiaglog] = useState(false);
+    const [action, setAction] = useState(null);
+    const [inputState, setInputState] = useState("");
+    const [state, setState] = useState("");
+    const [prevState, setPrevState] = useState("");
+    const [openVideoDialog, setOpenVideoDiaglog] = useState(false);
+    const [openChainDialog, setOpenChainDialog] = useState(false);
+    const [openActionDialog, setOpenActionDialog] = useState(false);
+
     const steps = [
         "1. Record the base state whenever you want to start over.",
         "2. Input the action you are going to take.",
@@ -49,11 +54,18 @@ function InteractionRecorder(props) {
             });
     }, []);
 
-    const capture = () => {
-        const imageSrc = webcamRef.current.getScreenshot(); // base64 encoded image. 
-        console.log(imageSrc);
-        setScreenshot(imageSrc);
-    };
+    useImperativeHandle(ref, () => ({
+        setAction,
+        setOpenActionDialog
+    }))
+
+    useEffect(() => {
+        if (recording !== "") {
+            setTimeout(() => {
+                endRecording();
+            }, 5000);   
+        }
+    }, [recording])
 
     const handleDataAvailable = (event) => {
         if (event.data.size > 0) {
@@ -61,7 +73,7 @@ function InteractionRecorder(props) {
         }
     };
 
-    const startRecording = (type) => {
+    const startRecording = async (type) => {
         // start record the video
         setRecording(type);
         setNewIdx(uuidv4());
@@ -73,11 +85,7 @@ function InteractionRecorder(props) {
         );
         mediaRecorderRef.current.start();
         // then tell hardware to collect data
-        axios
-            .get(window.HARDWARE_ADDRESS + "/startSensing")
-            .then((resp) => {
-                console.log(resp.message);
-            })
+        await axios.get(window.HARDWARE_ADDRESS + "/startSensing")
     };
 
     const endRecording = () => {
@@ -89,13 +97,11 @@ function InteractionRecorder(props) {
                 }
             })
             .then((resp) => {
-                console.log(resp.message);
                 mediaRecorderRef.current.stop();
                 if (recording === "state") {
-                    createNode(newIdx, status, action, status === "Base"? null: prevIdx);
+                    createNode(newIdx, status, state, action, prevIdx);
                 }
-                setOpenDiaglog(true);
-                setPrevIdx(newIdx);
+                setOpenVideoDiaglog(true);
             })
     };
 
@@ -113,8 +119,8 @@ function InteractionRecorder(props) {
                     idx: newIdx,
                     video: videoData
                 }
-                axios.
-                    post(window.BACKEND_ADDRESS + "/video/upload", newVideo)
+                axios
+                    .post(window.BACKEND_ADDRESS + "/video/upload", newVideo)
                     .then((resp) => {
                         console.log("upload video success: ", resp);
                     })
@@ -122,83 +128,202 @@ function InteractionRecorder(props) {
                         console.log("failed with error message: ", error);
                     });
             }
-            // URL.revokeObjectURL(blob);
+
+            axios
+                .get(window.HARDWARE_ADDRESS + "/storeData", {
+                    params: {
+                        idx: newIdx,
+                        device: board.title,
+                    }
+                })
+
+            if (recording === "state") {
+                setState("");
+                setStatus("choose action");
+            }
+            else {
+                setStatus("state");
+            }
+
             setVideo([]);
+            setPrevState(state);
+            setPrevIdx(newIdx);
             setRecording("");
+            setOpenVideoDiaglog(false);
         }
     };
 
-    const handleStatusChange = (e, newStatus) => {
-        if (newStatus === "Base") {
-            setAction("");
-        }
-        setStatus(newStatus);
+    const cancelRecording = () => {
+        setVideo([]);
+        setRecording("");
+        setOpenVideoDiaglog(false);
     };
 
-    const handleActionChange = (e) => {
-        setAction(e.target.value);
+    const handleAddBase = () => {
+        setChainNum((prev) => (prev + 1));
+        setState(inputState);
+        setStatus("base state");
+        setInputState("");
+        setOpenChainDialog(false);
+    };
+
+    const handleAddAction = () => {
+        setState(inputState);
+        setStatus("action");
+        setInputState("");
+        setOpenActionDialog(false);
+    };
+
+    const handleCloseChainDialog = () => {
+        setInputState("");
+        setOpenChainDialog(false);
+    };
+
+    const handleCloseActionDialog = () => {
+        setInputState("");
+        setOpenActionDialog(false);
+    };
+
+    const handleStateChange = (e) => {
+        setInputState(e.target.value);
     };
 
     return (
-        <div className='interaction-recorder-div'>
-            <h3>Interaction Steps</h3>
+        <Grid container className='interaction-recorder-div' >
+            {/* <h3>Interaction Steps</h3>
             <div className='step-div'>
                 {steps.map((step, index) => (
                     <p key={index}>{step}</p>
                 ))}
-            </div>
+            </div> */}
+            <Grid item xs={6} className='full-div'>
+                <div className='operation-div'>
+                    <div>
+                        {status === "start" &&
+                            <h4>Please start a new chain</h4>
+                        }
+                        <Button className="m-2" variant="outlined" color='success' onClick={() => setOpenChainDialog(true)}>Start a new action chain</Button>
+                        {status !== "start" &&
+                            <>
+                                <h6>Action Chain: #{chainNum}</h6>
+                                {(() => {
+                                    switch (status) {
+                                        case "base state": // record a state
+                                            return (
+                                                <>
+                                                    <h6>Current State: {state}</h6>
+                                                    <h6>Please start recording state</h6>
+                                                </>
+                                            );
+                                        case "state": // record a state
+                                            return (
+                                                <>
+                                                    <h6>Current State: {prevState}</h6>
+                                                    <h6>Please start recording state</h6>
+                                                </>
+                                            );
+                                        case "choose action": // choose an action
+                                            return (
+                                                <>
+                                                    <h6>Current State: {prevState}</h6>
+                                                    <h6>Please choose an action</h6>
+                                                </>
+                                            );
+                                        case "action": // record an action
+                                            return (
+                                                <>
+                                                    <h6>Current State: {prevState}</h6>
+                                                    <h6>Action: {action}</h6>
+                                                    <h6>Next State: {state}</h6>
+                                                </>
+                                            );
+                                        default:
+                                            return (
+                                                <div></div>
+                                            );
+                                    }
+                                })()}
+                            </>
+                        }
+                    </div>
 
-            <Webcam
-                // imageSmoothing={true}
-                audio={recording !== ""}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={videoConstraints}
-            />
-            <br />
-            <div className='operation-div'>
-                <ToggleButtonGroup
-                    value={status}
-                    exclusive
-                    onChange={handleStatusChange}
-                >
-                    <ToggleButton value={"Base"} color={status === "Base" ? "primary" : "info"}>Base</ToggleButton>
-                    <ToggleButton value={"Action"} color={status === "Action" ? "primary" : "info"}>Action</ToggleButton>
-                </ToggleButtonGroup>
-                <TextField
-                    name="Action"
-                    size="small"
-                    value={action}
-                    disabled={status === "Base"}
-                    onChange={handleActionChange}
-                    placeholder={status}
-                />
-            </div>
-            {/* take a scrrenshot picture */}
-            {/* <Button onClick={capture}>Capture photo</Button> */}
-            {/* {screenshot && <img src={screenshot} width={cameraWidth} height={cameraHeight} />} */}
 
-            {/* take a video recording */}
-            {recording === "action" ?
-                <Button className='mt-2' variant="contained" color="error" onClick={endRecording} startIcon={<VideocamOffIcon />}>End Action Recording</Button>
-                :
-                <Button className='mt-2' variant="outlined" onClick={() => startRecording("action")} startIcon={<VideocamIcon />}>Start Action Recording</Button>
-            }
-            {recording === "state" ?
-                <Button className="mt-2" variant="contained" color="error" onClick={endRecording} startIcon={<VideocamOffIcon />}>End State Recording</Button>
-                :
-                <Button className="mt-2" variant="outlined" onClick={() => startRecording("state")} startIcon={<VideocamIcon />}>Start State Recording</Button>
-            }
+                    <div>
+                        {recording === "state" ?
+                            <Button className="mt-2" variant="contained" color="error" onClick={endRecording} startIcon={<VideocamOffIcon />}>End State Recording</Button>
+                            :
+                            <Button className="mt-2" variant="outlined" disabled={(status !== "state" && status !== "base state") || chainNum === 0} onClick={() => startRecording("state")} startIcon={<VideocamIcon />}>Start State Recording</Button>
+                        }
+                        {recording === "action" ?
+                            <Button className='mt-2' variant="contained" color="error" onClick={endRecording} startIcon={<VideocamOffIcon />}>End Action Recording</Button>
+                            :
+                            <Button className='mt-2' variant="outlined" disabled={status !== "action"} onClick={() => startRecording("action")} startIcon={<VideocamIcon />}>Start Action Recording</Button>
+                        }
+                    </div>
+                </div>
+            </Grid>
+            <Grid item xs={6} className='full-div'>
+                <div className='full-div'>
+                    <Webcam
+                        // imageSmoothing={true}
+                        audio={recording !== ""}
+                        ref={webcamRef}
+                        screenshotFormat="image/jpeg"
+                        videoConstraints={videoConstraints}
+                    />
+                </div>
+            </Grid>
 
-            <Dialog open={openDialog && video.length > 0} onClose={() => { setOpenDiaglog(false) }}>
+            <Dialog open={openChainDialog}>
+                {/* let user label the state and show user the action
+                    highlight the table row when its recording ?
+                    show the labeled state and action belowe the camera
+                    a recording <=> stop recording "action"/"state" button
+                    a start a new chain button => record base state 
+                */}
+                <DialogTitle>New Action Chain</DialogTitle>
+                <DialogContent>
+                    <div style={{ padding: "10px" }}>
+                        <TextField label="Base State" value={inputState} onChange={handleStateChange} />
+                    </div>
+                </DialogContent>
+                <DialogActions>
+                    <Button variant="outlined" color="error" onClick={handleCloseChainDialog}>Cancel</Button>
+                    <Button variant="contained" color="primary" onClick={handleAddBase}>Submit</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={openActionDialog}>
+                {/* let user label the state and show user the action
+                    highlight the table row when its recording ?
+                    show the labeled state and action belowe the camera
+                    a recording <=> stop recording "action"/"state" button
+                    a start a new chain button => record base state 
+                */}
+                <DialogTitle>Label the Next State</DialogTitle>
+                <DialogContent>
+                    <div style={{ padding: "10px", display: 'flex', justifyContent: "space-between" }}>
+                        <h5 className='me-4'>{prevState}</h5>
+                        <Chip className="me-4" label={action} />
+                        <TextField size="small" style={{ width: "150px" }} label="Next State" value={inputState} onChange={handleStateChange} />
+                    </div>
+                </DialogContent>
+                <DialogActions>
+                    <Button variant="outlined" color="error" onClick={handleCloseActionDialog}>Cancel</Button>
+                    <Button variant="contained" color="primary" onClick={handleAddAction}>Submit</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={openVideoDialog && video.length > 0}>
                 <DialogTitle>You've complete the {recording} recording.</DialogTitle>
                 {/* <DialogContent>Click "confirm" to confirm this interaction.</DialogContent> */}
                 <DialogActions>
-                    <Button className='mt-2' variant="outlined" color="success" onClick={confirmRecording} startIcon={<CheckIcon />}>Confirm</Button>
+                    <Button className='mt-2' variant="outlined" color="error" onClick={cancelRecording} startIcon={<CancelIcon />}>Cancel</Button>
+                    <Button className='mt-2' variant="contained" color="success" onClick={confirmRecording} startIcon={<CheckIcon />}>Confirm</Button>
                 </DialogActions>
             </Dialog>
-        </div>
+        </Grid >
     );
-};
+});
 
-export default memo(InteractionRecorder)
+export default InteractionRecorder;

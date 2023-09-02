@@ -251,8 +251,11 @@ const CollagePanel = forwardRef((props, ref) => {
                         <video src={actionVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
-                {!prevNode && 
+                {!prevNode && selectedNode &&
                     <h5>No previous state or action</h5>
+                }
+                {!selectedNode && 
+                    <h5>Please select a state or action</h5>
                 }
                 {selectedNode && selectedNodeVideo &&
                     <div>

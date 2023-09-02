@@ -56,6 +56,7 @@ app.add_middleware(
 
 # ====================================== GLOBAL VARIABLES ==================================================
 ser = None
+quit = False
 listening = False
 data_thread = None
 
@@ -76,8 +77,8 @@ def read_from_arduino():
     print("Start reading from Arduino...")
     global ser
     ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
-    global avg_currents, max_currents, min_currents, times, listening
-    while True:
+    global avg_currents, max_currents, min_currents, times, listening, quit
+    while not quit:
         line = ser.readline()
         if line and listening:
             info = line.decode().rstrip()
@@ -113,7 +114,8 @@ async def startup_db_client():
 
 @app.on_event("shutdown")
 def shutdown_db_client():
-    global data_thread, ser
+    global data_thread, ser, quit
+    quit = True
     data_thread.join()
     ser.close()
     app.client.close()
@@ -126,133 +128,11 @@ async def root():
     return {"message": "Here is the hardware end of IoT-Auditor!"}
 
 
-@app.get("/get_data")
-async def get_data():
-    # devices = ["listening keyword", "listening monitor speech",
-    #            "muted tap", "muted monitor speech"]
-    # devices = ['Keyword Listening 08.15', 'Keyword Listening Casting 08.15', 'Command Listening 08.15', 'Command Listening Casting 08.15', 'Unmuted Playing Muted 08.15', 'Playing Vol Min 08.15', 'Playing Vol Mid 08.15', 'Playing Vol Max 08.15',
-    #            'Muted Base 08.15', 'Muted Base Casting 08.15', 'Muted Playing Muted 08.15', 'Muted Playing Vol Min 08.15', 'Muted Playing Vol Mid 08.15', 'Muted Playing Vol Max 08.15',
-    #            'Keyword Listening 08.16', 'Keyword Listening Max 08.16', 'Muted Base 08.16', 'Muted Base Max 08.16']
-    devices = ['Keyword Listening 08.15', 'Keyword Listening Casting 08.15', 'Playing Vol Min 08.15', 'Playing Vol Max 08.15',
-               'Muted Base 08.15', 'Muted Base Casting 08.15', 'Muted Playing Vol Min 08.15', 'Muted Playing Vol Max 08.15']
-
-    centers = []
-    radiuses = []
-    features = []
-    datas = []
-    point_state_dict = {}
-    point_labels = []
-    idx = 0
-    for device in devices:
-        data = app.database["iotdatas"].find({"device": device})
-        center, radius, feas = compute_data_features(data)
-        centers.append(center)
-        radiuses.append(radius)
-        datas.append(feas)
-        for fea in feas:
-            features.append(fea[0])
-            point_state_dict[idx] = device
-            point_labels.append(devices.index(device))
-            idx += 1
-
-    for i in range(len(devices)):
-        now_device = devices[i]
-        now_center = centers[i]
-        now_radius = radiuses[i]
-        now_datas = datas[i]
-        print(now_device + " (" + str(now_radius) + "):")
-        for j in range(i + 1, len(devices)):
-            cur_device = devices[j]
-            cur_datas = datas[j]
-            center_center_distance = calculate_distance(centers[j], now_center)
-            # print(now_device + " -> " + cur_device +
-            #       ": " + str(pairwise_distance))
-            point_center_distance = calculate_pairwise_distance(
-                now_datas, centers[j])
-            print(format(center_center_distance, ".2f"),
-                  ' , ', format(point_center_distance, ".2f"))
-        print("================================================")
-
-    draw(devices, features, point_state_dict, point_labels)
-
-    return {"message": "finish data processing"}
-
-
-@app.get("/check")
-async def check():
-    device = "test data 4"
-    datas = app.database["iotdatas"].find({"device": device})
-    powers = []
-    power_timestamps = []
-    emanations = []
-    emanation_timestamps = []
-    features = []
-    for data in datas:
-        powers.append(data["power"])
-        power_timestamps.append(data["power_timestamp"])
-        emanation = data["emanation"]
-        emanation_timestamps.append(data["emanation_timestamp"][0])
-
-    powers = np.concatenate(powers)
-    power_timestamps = np.concatenate(power_timestamps)
-
-    # Create a new figure and axis
-
-    # Plot the first line chart on the first y-axis
-    plt.scatter(power_timestamps, powers)
-
-    # # Create a second y-axis that shares the same x-axis
-    # ax2 = ax1.twinx()
-
-    # # Plot the second line chart on the second y-axis
-    # ax2.plot(times, emanations, 'b-')
-    # ax2.set_ylabel('Emanation', color='b')
-    # ax2.tick_params('y', colors='b')
-
-    # Set the title
-    plt.title("Power Changes with Time")
-    plt.savefig("power_time.png")
-
-    return {"message": "verify state changes"}
-
-
 @app.get("/getBoards")
 async def get_boards():
     boards = app.database["boards"].find()
     titles = [board["title"] for board in boards]
     return {"message": str(titles)}
-
-
-@app.get("/start/")
-async def start_sensing(device: str):
-    global isSensing
-    isSensing = True
-    # if loop_thread is None or not loop_thread.is_alive():
-    #     loop_thread = threading.Thread(target=sensing(device))
-    #     loop_thread.start()
-    #     return {"message": "Sensing IoT device started: " + device}
-    # else:
-    #     return {"message": "Sensing IoT device is already running"}
-    sensing(device)
-    return {"message": "start sensing " + device}
-
-
-@app.get("/prep/")
-async def prep_for_predict(device: str):
-    cal_clusters_center(device)
-    return {"message": "Here"}
-
-
-@app.get("/predict/")
-async def annotate_sensing(device: str):
-    global isSensing
-    isSensing = True
-    if loop_thread is None or not loop_thread.is_alive():
-        loop_thread = threading.Thread(target=predict_sensing(device))
-        loop_thread.start()
-        return {"message": "Predicting IoT device state: " + device}
-    else:
-        return {"message": "Predicting IoT device state is already running"}
 
 
 @app.get("/remove/")
@@ -271,7 +151,6 @@ async def remove_all_data():
 
 @app.get("/removeAllData")
 async def remove_all_data():
-    # app.database["iotstates"].delete_many({})
     app.database["iotdatas"].delete_many({})
     return {"message": "Delete all data."}
 
@@ -294,10 +173,15 @@ async def start_sensing():
 async def stop_sensing(idx: str, device: str):
     global listening, max_currents, avg_currents, min_currents, times
     listening = False
+    return {"message": "Stop Recording!"}
+
+
+@app.get("/storeData")
+async def store(idx: str, device: str):
     store_power_data(device, idx, max_currents,
                      avg_currents, min_currents, times)
     clear_data()
-    return {"message": "Stop Recording!"}
+    return {"message": "Store data"}
 
 
 class DataModel(BaseModel):
@@ -307,12 +191,19 @@ class DataModel(BaseModel):
 
 @app.post("/collage")
 async def collage(data: DataModel = Body(...)):
-    states, ids, X, Y = build_dataset(data.device, data.nodes)
-    distribution_dict = cluster_states(X, Y)
-    node_collage_dict, collages = generate_collage_node(distribution_dict, ids)
+    # 1. split nodes to different groups by action
+    # 2. run clustering algorithm inside each group
+    group_idx = 0
+    node_collage_dict = {}
+
+    actions, action_node_dict = action_match(data.nodes)
+    for action, nodes in action_node_dict.items():
+        states, ids, X, Y = build_dataset(data.device, nodes)
+        distribution_dict = cluster_states(X, Y)
+        node_collage_dict, group_idx = generate_collage_node(distribution_dict, ids, group_idx, node_collage_dict)
 
     resp = {
-        "collages": collages,
+        "group_cnt": group_idx,
         "node_collage_dict": node_collage_dict
     }
     return JSONResponse(content=jsonable_encoder(resp))
@@ -346,6 +237,7 @@ async def verify():
 
 # ========================================= Functions =========================================================
 
+
 def clear_data():
     global max_currents, avg_currents, min_currents, times
     max_currents = []
@@ -370,6 +262,19 @@ def store_power_data(device, idx, max_currents, avg_currents, min_currents, time
     }
     create_data(jsonable_encoder(data))
 
+def action_match(nodes):
+    actions = []
+    action_node_dict = {}
+    for node in nodes:
+        action = node["data"]["action"]
+        if action in action_node_dict:
+            action_node_dict[action].append(node)
+        else:
+            actions.append(action)
+            action_node_dict[action] = [node]
+    
+    return actions, action_node_dict
+
 
 def build_dataset(device, nodes):
     collected_node = []
@@ -386,8 +291,10 @@ def build_dataset(device, nodes):
             labels.append(group_node["data"]["label"])
             for child in children:
                 collected_node.append(child)
-                avg_currents, max_currents, min_currents, times = get_data(device, child)
-                features = get_features(avg_currents, max_currents, min_currents)
+                avg_currents, max_currents, min_currents, times = get_data(
+                    device, child)
+                features = get_features(
+                    avg_currents, max_currents, min_currents)
                 for feature in features:
                     dataset_X.append(feature)
                     dataset_Y.append(len(labels) - 1)
@@ -396,7 +303,8 @@ def build_dataset(device, nodes):
         if state_node["id"] not in collected_node:
             collected_node.append(state_node["id"])
             labels.append(state_node["data"]["label"])
-            avg_currents, max_currents, min_currents, times = get_data(device, state_node["id"])
+            avg_currents, max_currents, min_currents, times = get_data(
+                device, state_node["id"])
             features = get_features(avg_currents, max_currents, min_currents)
             for feature in features:
                 dataset_X.append(feature)
@@ -459,6 +367,8 @@ def classify(states, X, Y):
         y_pred = clf.predict(X_test)
         cm = confusion_matrix(y_test, y_pred, labels=[
                               i for i in range(len(states))])
+        print(y_pred)
+        print(cm)
         cms += cm
 
         acc = accuracy_score(y_test, y_pred)
@@ -469,20 +379,21 @@ def classify(states, X, Y):
     for row in cms:
         row_sum = np.sum(row)
         avg_cm.append([format(x / row_sum, ".2f") for x in row])
-
+    print("cms:", cms)
+    print("avg_cm", avg_cm)
     return clf, avg_cm, avg_accuracy
 
 
-def generate_collage_node(distribution_dict, ids):
-    node_collage_dict = {}
-    collages = []
+def generate_collage_node(distribution_dict, ids, group_idx, node_collage_dict):
+    cluster_map = {}
     for state, clusters in distribution_dict.items():
         cluster = int(np.argmax(clusters))
-        node_collage_dict[ids[state]] = cluster
-        collages.append(cluster)
+        if cluster not in cluster_map:
+            group_idx += 1
+            cluster_map[cluster] = group_idx
+        node_collage_dict[ids[state]] = cluster_map[cluster]
 
-    collages = set(collages)
-    return node_collage_dict, collages
+    return node_collage_dict, group_idx
 
 
 def cluster_states(X, Y):
@@ -491,7 +402,7 @@ def cluster_states(X, Y):
     num_of_states = len(set(Y))
 
     # Silhouette Score
-    clusters_nums = [i for i in range(3, num_of_states + 1)]
+    clusters_nums = [i for i in range(2, num_of_states + 1)]
     sil = []
     for i in clusters_nums:  # Silhouette score is defined only for more than 1 cluster
         kmeans = KMeans(n_clusters=i, init='k-means++',
@@ -500,7 +411,9 @@ def cluster_states(X, Y):
         silhouette_avg = silhouette_score(scaled_X, kmeans.labels_)
         sil.append(silhouette_avg)
 
-    best_cluster_number = clusters_nums[np.argmax(sil)]
+    best_cluster_number = 1
+    if len(sil) > 0:
+        best_cluster_number = clusters_nums[np.argmax(sil)]
     kmeans = KMeans(n_clusters=best_cluster_number)
     kpred = kmeans.fit_predict(scaled_X)
 
@@ -511,7 +424,6 @@ def cluster_states(X, Y):
         pred_label = kpred[i]
         distribution_dict[true_label][pred_label] += 1
 
-    print(distribution_dict)
     return distribution_dict
     # plt.plot(range(2, len(states)), sil)
     # plt.title('Silhouette Score Method')
@@ -543,6 +455,7 @@ def cluster_states(X, Y):
     # n_clusters_ = len(unique_labels) - (1 if -1 in labels else 0)
 
 # ===========================================================================================================
+
 
 def predict_state(features):
     global classifier, labels

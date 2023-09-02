@@ -1,20 +1,22 @@
 import React from "react";
 import { useState } from "react";
-import { Button, Paper, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
+import { Button, Paper, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogActions, DialogContent } from "@mui/material";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import PlayCircleFilledIcon from '@mui/icons-material/PlayCircleFilled';
 import { memo } from "react";
 
 function InstructionTable(props) {
-    const { instructions, setInstructions } = props;
+    const { instructions, setInstructions, addAction, status } = props;
     const [newRow, setNewRow] = useState({
         function: '',
         interaction: '',
         image: ''
     });
     const [imagePreview, setImagePreview] = useState(null);
-    const [editingCell, setEditingCell] = useState(null); // { rowIndex: null, columnName: null }
+    const [editingCell, setEditingCell] = useState(null);
+    const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
     const handleCellClick = (rowIndex, columnName) => {
         setEditingCell({ index: rowIndex, columnName: columnName });
@@ -74,120 +76,137 @@ function InstructionTable(props) {
         setImagePreview(null);
     }
 
-    const handleDeleteRow = (index) => {
+    const handleDeleteRow = () => {
         const updatedInstructions = [...instructions];
-        updatedInstructions.splice(index, 1);
+        updatedInstructions.splice(editingCell.index, 1);
         setInstructions(updatedInstructions);
-    }
+        setOpenDeleteDialog(false);
+    };
+
+    const handleClickAction = (index) => {
+        addAction(instructions[index].interaction);
+    };
 
     return (
-        <TableContainer component={Paper} sx={{ maxWidth: "100%" }}>
-            <Table stickyHeader>
-                <TableHead>
-                    <TableRow>
-                        <TableCell align="center" sx={{ fontWeight: "bold" }}>Function</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: "bold" }}>Interaction</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: "bold" }}>Image</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {instructions.map((instruction, index) => (
-                        <TableRow key={index} >
-                            <TableCell onClick={() => handleCellClick(index, 'function')}>
-                                {editingCell?.index === index && editingCell?.columnName === 'function' ?
-                                    <TextField
-                                        name="function"
-                                        size="small"
-                                        value={instruction.function}
-                                        onChange={(e) => handleInputChange(e, index)}
-                                        onBlur={handleCellBlur}
-                                        autoFocus
-                                    /> :
-                                    instruction.function
-                                }
+        <div>
+            <TableContainer component={Paper} sx={{ maxWidth: "100%" }}>
+                <Table stickyHeader>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell align="center" sx={{ fontWeight: "bold" }}>Function</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: "bold" }}>Interaction</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: "bold" }}>Image</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {instructions.map((instruction, index) => (
+                            <TableRow key={index} >
+                                <TableCell onClick={() => handleCellClick(index, 'function')}>
+                                    {editingCell?.index === index && editingCell?.columnName === 'function' ?
+                                        <TextField
+                                            name="function"
+                                            size="small"
+                                            value={instruction.function}
+                                            onChange={(e) => handleInputChange(e, index)}
+                                            onBlur={handleCellBlur}
+                                            autoFocus
+                                        /> :
+                                        instruction.function
+                                    }
+                                </TableCell>
+                                <TableCell onClick={() => handleCellClick(index, 'interaction')}>
+                                    {editingCell?.index === index && editingCell?.columnName === 'interaction' ?
+                                        <TextField
+                                            name="interaction"
+                                            size="small"
+                                            value={instruction.interaction}
+                                            onChange={(e) => handleInputChange(e, index)}
+                                            onBlur={handleCellBlur}
+                                            autoFocus
+                                        /> :
+                                        instruction.interaction
+                                    }
+                                </TableCell>
+                                <TableCell>
+                                    <input
+                                        style={{ display: 'none' }} // This hides the default file input
+                                        id={`file-upload-${index}`} // unique id for each input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={e => handleImageChange(e, index)}
+                                    />
+                                    {instruction.image ? (
+                                        <label htmlFor={`file-upload-${index}`}>
+                                            {/* Clicking on this image will now trigger the file input */}
+                                            <img src={instruction.image} alt="Uploaded" width="100" height="100" style={{ cursor: 'pointer' }} />
+                                        </label>
+                                    ) : (
+                                        <label htmlFor={`file-upload-${index}`}>
+                                            <Button component="span" color="primary" startIcon={<CloudUploadIcon />} />
+                                        </label>
+                                    )}
+                                </TableCell>
+                                <TableCell onClick={() => handleCellClick(index, 'operation')}>
+                                    <Button color="primary" onClick={() => handleClickAction(index)} disabled={status !== "choose action"} startIcon={<PlayCircleFilledIcon />} />
+                                    <Button color="error" onClick={() => setOpenDeleteDialog(true)} startIcon={<DeleteIcon />} />
+                                </TableCell>
+                            </TableRow>
+                        ))}
+
+                        <TableRow>
+                            <TableCell>
+                                <TextField
+                                    name="function"
+                                    size="small"
+                                    value={newRow.function}
+                                    onChange={handleInputChange}
+                                    placeholder="Function"
+                                />
                             </TableCell>
-                            <TableCell onClick={() => handleCellClick(index, 'interaction')}>
-                                {editingCell?.index === index && editingCell?.columnName === 'interaction' ?
-                                    <TextField
-                                        name="interaction"
-                                        size="small"
-                                        value={instruction.interaction}
-                                        onChange={(e) => handleInputChange(e, index)}
-                                        onBlur={handleCellBlur}
-                                        autoFocus
-                                    /> :
-                                    instruction.interaction
-                                }
+                            <TableCell>
+                                <TextField
+                                    name="interaction"
+                                    size="small"
+                                    value={newRow.interaction}
+                                    onChange={handleInputChange}
+                                    placeholder="Interaction"
+                                />
                             </TableCell>
                             <TableCell>
                                 <input
-                                    style={{ display: 'none' }} // This hides the default file input
-                                    id={`file-upload-${index}`} // unique id for each input
+                                    style={{ display: 'none' }}
+                                    id="new-file-upload"
                                     type="file"
                                     accept="image/*"
-                                    onChange={e => handleImageChange(e, index)}
+                                    onChange={handleImageChange}
                                 />
-                                {instruction.image ? (
-                                    <label htmlFor={`file-upload-${index}`}>
-                                        {/* Clicking on this image will now trigger the file input */}
-                                        <img src={instruction.image} alt="Uploaded" width="100" height="100" style={{ cursor: 'pointer' }} />
+                                {imagePreview ? (
+                                    <label htmlFor="new-file-upload">
+                                        <img src={imagePreview} alt="Preview" width="100" height="100" style={{ cursor: 'pointer' }} />
                                     </label>
                                 ) : (
-                                    <label htmlFor={`file-upload-${index}`}>
-                                        <Button component="span" color="primary" startIcon={<CloudUploadIcon />}/>
+                                    <label htmlFor="new-file-upload">
+                                        <Button component="span" color="primary" startIcon={<CloudUploadIcon />} />
                                     </label>
                                 )}
                             </TableCell>
                             <TableCell>
-                                <Button color="error" onClick={() => handleDeleteRow(index)} startIcon={<DeleteIcon />} />
+                                <Button onClick={handleAddRow} startIcon={<AddCircleIcon />} />
                             </TableCell>
                         </TableRow>
-                    ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
-                    <TableRow>
-                        <TableCell>
-                            <TextField
-                                name="function"
-                                size="small"
-                                value={newRow.function}
-                                onChange={handleInputChange}
-                                placeholder="Function"
-                            />
-                        </TableCell>
-                        <TableCell>
-                            <TextField
-                                name="interaction"
-                                size="small"
-                                value={newRow.interaction}
-                                onChange={handleInputChange}
-                                placeholder="Interaction"
-                            />
-                        </TableCell>
-                        <TableCell>
-                            <input
-                                style={{ display: 'none' }}
-                                id="new-file-upload"
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageChange}
-                            />
-                            {imagePreview ? (
-                                <label htmlFor="new-file-upload">
-                                    <img src={imagePreview} alt="Preview" width="100" height="100" style={{ cursor: 'pointer' }} />
-                                </label>
-                            ) : (
-                                <label htmlFor="new-file-upload">
-                                    <Button component="span"  color="primary" startIcon={<CloudUploadIcon />} />
-                                </label>
-                            )}
-                        </TableCell>
-                        <TableCell>
-                            <Button onClick={handleAddRow} startIcon={<AddCircleIcon />} />
-                        </TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
-        </TableContainer>
+            <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+                <DialogTitle>Are you sure to delete this instruction?</DialogTitle>
+                <DialogActions>
+                    <Button color="primary" variant="outlined" onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
+                    <Button color="error" variant="contained" onClick={handleDeleteRow}>Delete</Button>
+                </DialogActions>
+            </Dialog>
+
+        </div>
     )
 }
 

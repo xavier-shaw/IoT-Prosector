@@ -20,7 +20,7 @@
 
 .top-side-div {
     width: 100%;
-    height: 5%;
+    height: 4%;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -29,7 +29,7 @@
 
 .bottom-side-div {
     width: 100%;
-    height: 95%;
+    height: 96%;
     display: flex;
 }
 
@@ -42,6 +42,19 @@
 .panel-div {
     height: 100%;
     width: 100%;
+}
+
+.table-div {
+    width: 100%;
+    height: 58%;
+    margin-bottom: 10px;
+    overflow-y: auto;
+}
+
+.action-div {
+    width: 100%;
+    height: 40%;
+    margin-bottom: 10px;
 }
 
 .collage-top-side-div {
