@@ -335,6 +335,7 @@ def get_features(avg_currents, max_currents, min_currents):
             (avg_features, max_features, min_features))
         features.append(feas)
 
+    print(len(features))
     return features
 
 
@@ -367,8 +368,6 @@ def classify(states, X, Y):
         y_pred = clf.predict(X_test)
         cm = confusion_matrix(y_test, y_pred, labels=[
                               i for i in range(len(states))])
-        print(y_pred)
-        print(cm)
         cms += cm
 
         acc = accuracy_score(y_test, y_pred)
@@ -379,8 +378,6 @@ def classify(states, X, Y):
     for row in cms:
         row_sum = np.sum(row)
         avg_cm.append([format(x / row_sum, ".2f") for x in row])
-    print("cms:", cms)
-    print("avg_cm", avg_cm)
     return clf, avg_cm, avg_accuracy
 
 

@@ -78,7 +78,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
         setRecording(type);
         setNewIdx(uuidv4());
         const mediaStream = webcamRef.current.stream;
-        mediaRecorderRef.current = new MediaRecorder(mediaStream, { mimeType: "video/mp4" });
+        mediaRecorderRef.current = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
         mediaRecorderRef.current.addEventListener(
             "dataavailable",
             handleDataAvailable
@@ -107,7 +107,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
     const confirmRecording = () => {
         if (video.length) {
-            const blob = new Blob(video, { type: 'video/mp4' });
+            const blob = new Blob(video, { type: 'video/webm' });
             // store the data
             const reader = new FileReader();
             reader.readAsDataURL(blob);
