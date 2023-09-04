@@ -72,6 +72,9 @@ group_cnt = 10
 classifier = None
 labels = []
 
+SEMANTIC_CLUSTERING = 0
+DATA_CLUSTERING = 1
+
 
 def read_from_arduino():
     print("Start reading from Arduino...")
@@ -192,20 +195,39 @@ class DataModel(BaseModel):
 @app.post("/collage")
 async def collage(data: DataModel = Body(...)):
     # 1. split nodes to different groups by action
-    # 2. run clustering algorithm inside each group
-    group_idx = 0
-    node_collage_dict = {}
+    # 2. run clustering algorithm inside each group => semantic group states
+    # 3. based on semantic result, run clustering algorithm again => combined group state
+    # 4. we have a heirarchical graph
+
+    semantic_group_idx = 0
+    semantic_node_collage_dict = {}
 
     actions, action_node_dict = action_match(data.nodes)
+    # print("action node dict", action_node_dict)
+    new_X = []
+    new_Y = []
     for action, nodes in action_node_dict.items():
         states, ids, X, Y = build_dataset(data.device, nodes)
-        distribution_dict = cluster_states(X, Y)
-        node_collage_dict, group_idx = generate_collage_node(distribution_dict, ids, group_idx, node_collage_dict)
+        semantic_distribution_dict = cluster_states(X, Y, SEMANTIC_CLUSTERING)
+        semantic_node_collage_dict, semantic_group_idx = generate_collage_node(
+            semantic_distribution_dict, ids, semantic_group_idx, semantic_node_collage_dict)
+        new_X, new_Y = build_semantic_dataset(
+            semantic_node_collage_dict, ids, X, Y, new_X, new_Y)
+
+    combined_group_idx = 0
+    combined_distribution_dict = cluster_states(new_X, new_Y, DATA_CLUSTERING)
+    combined_node_collage_dict, combined_group_idx = build_final_collage_node(
+        semantic_node_collage_dict, combined_distribution_dict, combined_group_idx)
 
     resp = {
-        "group_cnt": group_idx,
-        "node_collage_dict": node_collage_dict
+        "semantic_group_cnt": semantic_group_idx,
+        "semantic_collage_dict": semantic_node_collage_dict,
+        "combined_group_cnt": combined_group_idx,
+        "combined_collage_dict": combined_node_collage_dict
     }
+
+    print(semantic_node_collage_dict)
+    print(combined_node_collage_dict)
     return JSONResponse(content=jsonable_encoder(resp))
 
 
@@ -262,6 +284,7 @@ def store_power_data(device, idx, max_currents, avg_currents, min_currents, time
     }
     create_data(jsonable_encoder(data))
 
+
 def action_match(nodes):
     actions = []
     action_node_dict = {}
@@ -272,47 +295,51 @@ def action_match(nodes):
         else:
             actions.append(action)
             action_node_dict[action] = [node]
-    
+
     return actions, action_node_dict
 
 
-def build_dataset(device, nodes):
-    collected_node = []
-    labels = []
-    dataset_X = []
-    dataset_Y = []
+def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, Y, independent=False):
+    for node in target_nodes:
+        if node["id"] not in collected_nodes:
+            collected_nodes.append(node["id"])
+            if independent:
+                labels.append(node["data"]["label"])
 
-    group_nodes = [n for n in nodes if n["type"] == "modeNode"]
-    state_nodes = [n for n in nodes if n["type"] == "stateNode"]
-
-    for group_node in group_nodes:
-        children = group_node["data"]["children"]
-        if len(children) > 0:
-            labels.append(group_node["data"]["label"])
-            for child in children:
-                collected_node.append(child)
+            if "children" in node["data"]:
+                children = node["data"]["children"]
+                if len(children) > 0:
+                    children_nodes = [n for n in nodes if n["id"] in children]
+                    labels, collected_nodes, X, Y = dfs_traverse_graph(
+                        device, nodes, children_nodes, labels, collected_nodes, X, Y)
+            else:
                 avg_currents, max_currents, min_currents, times = get_data(
-                    device, child)
+                    device, node["id"])
                 features = get_features(
                     avg_currents, max_currents, min_currents)
                 for feature in features:
-                    dataset_X.append(feature)
-                    dataset_Y.append(len(labels) - 1)
+                    X.append(feature)
+                    Y.append(len(labels) - 1)
 
-    for state_node in state_nodes:
-        if state_node["id"] not in collected_node:
-            collected_node.append(state_node["id"])
-            labels.append(state_node["data"]["label"])
-            avg_currents, max_currents, min_currents, times = get_data(
-                device, state_node["id"])
-            features = get_features(avg_currents, max_currents, min_currents)
-            for feature in features:
-                dataset_X.append(feature)
-                dataset_Y.append(len(labels) - 1)
+    return labels, collected_nodes, X, Y
 
-    dataset_X = np.array(dataset_X)
-    dataset_Y = np.array(dataset_Y)
-    return labels, collected_node, dataset_X, dataset_Y
+
+def build_dataset(device, nodes):
+    collected_nodes = []
+    labels = []
+    X = []
+    Y = []
+
+    order = ["combinedNode", "semanticNode", "stateNode"]
+    sorted_nodes = sorted(nodes, key=lambda x: order.index(x["type"]))
+
+    labels, collected_nodes, X, Y = dfs_traverse_graph(
+        device, sorted_nodes, sorted_nodes, labels, collected_nodes, X, Y, independent=True)
+
+    X = np.array(X)
+    Y = np.array(Y)
+
+    return labels, collected_nodes, X, Y
 
 
 def get_features(avg_currents, max_currents, min_currents):
@@ -335,7 +362,6 @@ def get_features(avg_currents, max_currents, min_currents):
             (avg_features, max_features, min_features))
         features.append(feas)
 
-    print(len(features))
     return features
 
 
@@ -386,32 +412,41 @@ def generate_collage_node(distribution_dict, ids, group_idx, node_collage_dict):
     for state, clusters in distribution_dict.items():
         cluster = int(np.argmax(clusters))
         if cluster not in cluster_map:
-            group_idx += 1
             cluster_map[cluster] = group_idx
+            group_idx += 1
         node_collage_dict[ids[state]] = cluster_map[cluster]
 
     return node_collage_dict, group_idx
 
 
-def cluster_states(X, Y):
+def cluster_states(X, Y, type):
     scaler = StandardScaler()
     scaled_X = scaler.fit_transform(X)
     num_of_states = len(set(Y))
 
     # Silhouette Score
-    clusters_nums = [i for i in range(2, num_of_states + 1)]
+    clusters_nums = [i for i in range(type + 2, num_of_states + 1)]
     sil = []
     for i in clusters_nums:  # Silhouette score is defined only for more than 1 cluster
         kmeans = KMeans(n_clusters=i, init='k-means++',
-                        max_iter=300, n_init=10, random_state=0)
+                        max_iter=300, n_init=10, random_state=42)
         kmeans.fit(scaled_X)
         silhouette_avg = silhouette_score(scaled_X, kmeans.labels_)
         sil.append(silhouette_avg)
 
+    plt.plot(range(type + 2, num_of_states + 1), sil)
+    plt.title('Silhouette Score Method')
+    plt.xlabel('Number of clusters')
+    plt.ylabel('Silhouette Score')
+
+    plt.savefig('silhouette_score.png', bbox_inches='tight')
+    plt.close()
+
     best_cluster_number = 1
     if len(sil) > 0:
         best_cluster_number = clusters_nums[np.argmax(sil)]
-    kmeans = KMeans(n_clusters=best_cluster_number)
+    kmeans = KMeans(n_clusters=best_cluster_number,
+                    init='k-means++', max_iter=300, n_init=10, random_state=42)
     kpred = kmeans.fit_predict(scaled_X)
 
     distribution_dict = {l: [0 for i in range(
@@ -422,35 +457,31 @@ def cluster_states(X, Y):
         distribution_dict[true_label][pred_label] += 1
 
     return distribution_dict
-    # plt.plot(range(2, len(states)), sil)
-    # plt.title('Silhouette Score Method')
-    # plt.xlabel('Number of clusters')
-    # plt.ylabel('Silhouette Score')
 
-    # plt.savefig('silhouette_score.png', bbox_inches='tight')
-    # plt.close()
-    # # # ===========================  DBSCAN ==================================
-    # from sklearn.neighbors import NearestNeighbors
-    # k_value = 3
-    # # Compute the nearest neighbors
-    # nn = NearestNeighbors(n_neighbors=k_value).fit(scaled_X)
-    # distances, _ = nn.kneighbors(scaled_X)
 
-    # # Sort distances by the distance to the kth nearest neighbor
-    # sorted_distances = np.sort(distances[:, -1])
-    # plt.plot(sorted_distances)
-    # plt.ylabel('kth Nearest Neighbor Distance')
-    # plt.xlabel('Points Sorted by Distance')
-    # plt.savefig("test.png")
+def build_semantic_dataset(node_collage_dict, ids, X, Y, new_X, new_Y):
+    for index in range(len(Y)):
+        node_id = ids[Y[index]]
+        semantic_label = node_collage_dict[node_id]
+        new_X.append(X[index])
+        new_Y.append(semantic_label)
 
-    # db = DBSCAN(eps=0.5, min_samples=k_value).fit(scaled_X)
-    # labels = db.labels_
-    # print(labels)
-    # print(Y)
-    # # Number of clusters in labels, ignoring noise if present.
-    # unique_labels = set(labels)
-    # n_clusters_ = len(unique_labels) - (1 if -1 in labels else 0)
+    return new_X, new_Y
 
+
+def build_final_collage_node(node_collage_dict, final_distribution_dict, group_idx):
+    cluster_map = {}
+    final_collage_dict = {}
+    for state, clusters in final_distribution_dict.items():
+        cluster = int(np.argmax(clusters))
+        if cluster not in cluster_map:
+            cluster_map[cluster] = group_idx
+            group_idx += 1
+        for id, semantic_state in node_collage_dict.items():
+            if state == semantic_state:
+                final_collage_dict[id] = cluster_map[cluster]
+
+    return final_collage_dict, group_idx
 # ===========================================================================================================
 
 

@@ -2,15 +2,15 @@ import { useCallback, useState } from 'react';
 import { Handle, NodeResizeControl, Position } from 'reactflow';
 import { TextField } from '@mui/material';
 
-export default function ModeNode(props) {
+export default function CombinedNode(props) {
     let { id, data } = props;
     const l = data.label;
     const [editable, setEditable] = useState(false);
-    const [modeName, setModeName] = useState(l);
+    const [nodeName, setNodeName] = useState(l);
 
     const onChange = (event) => {
         data.label = event.target.value;
-        setModeName(event.target.value);
+        setNodeName(event.target.value);
     };
 
     function ResizeIcon() {
@@ -48,9 +48,9 @@ export default function ModeNode(props) {
             </NodeResizeControl>
             <Handle type="target" position={Position.Left} />
             {editable ?
-                <TextField value={modeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
+                <TextField value={nodeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
-                <h4 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{modeName}</h4>
+                <h4 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{nodeName}</h4>
             }
             <Handle type="source" position={Position.Right} />
         </>

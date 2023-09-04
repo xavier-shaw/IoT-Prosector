@@ -15,7 +15,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
 import CollagePanel from "../components/CollagePanel";
-import { childNodeoffsetY, nodeMarginX, nodeMarginY, nodeOffsetX, stateNodeStyle } from "../shared/chartStyle";
+import { childNodeoffsetY, nodeOffsetX, nodeOffsetY, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle } from "../shared/chartStyle";
 
 export default function Board(props) {
     let params = useParams();
@@ -30,7 +30,6 @@ export default function Board(props) {
     const [chainNum, setChainNum] = useState(0);
     const [status, setStatus] = useState("start");
     const [openDialog, setOpenDiaglog] = useState(false);
-    const [updateMatrix, setUpdateMatrix] = useState(false);
 
     const nodeChartRef = useRef(null);
     const collagePanelRef = useRef(null);
@@ -100,6 +99,10 @@ export default function Board(props) {
         setOpenDiaglog(false);
     }
 
+    const updateMatrix = (nodes) => {
+        collagePanelRef.current.classifyStates(nodes);
+    }
+
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
         let newChart = { ...chart };
         let position;
@@ -108,11 +111,11 @@ export default function Board(props) {
         if (status === "state") {
             let newTransition = createEdge(edgeIdx, prevNode.id, nodeIdx, action);
             newChart.edges.push(newTransition);
-            position = { x: prevNode.position.x, y: prevNode.position.y + childNodeoffsetY };
+            position = { x: prevNode.position.x, y: prevNode.position.y + nodeOffsetY };
         }
-        else{
+        else {
             // status = "base state" => base node
-            position = { x: nodeMarginX + nodeOffsetX * chainNum, y: nodeMarginY };
+            position = { x: semanticNodeMarginX + nodeOffsetX * chainNum, y: semanticNodeMarginY };
             action = "base state action";
         }
 
@@ -226,15 +229,16 @@ export default function Board(props) {
                         </DialogActions>
                     </Dialog>
                 </div>
-                {(() => {
-                    switch (step) {
-                        case 0:
-                            return (
-                                <Grid container columnSpacing={2} className="bottom-side-div">
-                                    <Grid item xs={7} className="panel-div">
-                                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                                            setChartSelection={setChartSelection} />
-                                    </Grid>
+                <Grid container columnSpacing={2} className="bottom-side-div">
+                    <Grid item xs={7} className="panel-div">
+                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
+                            setChartSelection={setChartSelection} updateMatrix={updateMatrix}/>
+                    </Grid>
+                    {(() => {
+                        switch (step) {
+                            case 0:
+                                return (
+
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
                                         <div className="table-div">
                                             <InstructionTable instructions={instructions} setInstructions={setInstructions} addAction={addAction} status={status} />
@@ -244,39 +248,26 @@ export default function Board(props) {
                                                 chainNum={chainNum} setChainNum={setChainNum} status={status} setStatus={setStatus} />
                                         </div>
                                     </Grid>
-                                </Grid>
-                            );
-                        case 1:
-                            return (
-                                <Grid container columnSpacing={2} className="bottom-side-div">
-                                    <Grid item xs={7} className="panel-div">
-                                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                                            setChartSelection={setChartSelection} />
-                                    </Grid>
+                                );
+                            case 1:
+                                return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
                                         <CollagePanel ref={collagePanelRef} board={board} chart={chart} chartSelection={chartSelection} />
                                     </Grid>
-                                </Grid>
-                            );
-                        case 2:
-                            return (
-                                <Grid container columnSpacing={2} className="bottom-side-div">
-                                    <Grid item xs={7} className="panel-div">
-                                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                                            setChartSelection={setChartSelection} />
-                                    </Grid>
+                                );
+                            case 2:
+                                return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
                                         <div>
 
                                         </div>
                                     </Grid>
-                                </Grid>
-                            )
-                        default:
-                            break;
-                    }
-                })()}
-
+                                )
+                            default:
+                                break;
+                        }
+                    })()}
+                </Grid>
             </div>
         </div>
     )

@@ -1,6 +1,7 @@
 import { Chip, TextField } from '@mui/material';
 import React, { useEffect, useState } from 'react';
 import { getBezierPath, EdgeLabelRenderer, BaseEdge, getSmoothStepPath } from 'reactflow';
+import { getEdgeStyle } from '../shared/chartStyle';
 
 export default function ExploreEdge(props) {
     let { sourceX,
@@ -28,16 +29,7 @@ export default function ExploreEdge(props) {
             <EdgeLabelRenderer>
                 <div
                     id={id + "_label"}
-                    style={{
-                        position: 'absolute',
-                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        fontSize: 14,
-                        fontWeight: 'bold',
-                        pointerEvents: 'all',
-                        backgroundColor: "#f4a261",
-                        borderRadius: 10,
-                        zIndex: 4
-                    }}
+                    style={getEdgeStyle(labelX, labelY)}
                     className="nodrag nopan"
                 >
                     <Chip label={data.label}/>

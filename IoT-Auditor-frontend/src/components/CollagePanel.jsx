@@ -19,10 +19,6 @@ const CollagePanel = forwardRef((props, ref) => {
     }));
 
     useEffect(() => {
-        classifyStates();
-    }, [chart]);
-
-    useEffect(() => {
         if (chartSelection.type === "stateNode") {
             let node_id = chartSelection.id;
             let prev_id = chartSelection.data.prev;
@@ -52,17 +48,18 @@ const CollagePanel = forwardRef((props, ref) => {
             })
     }
 
-    const classifyStates = () => {
+    const classifyStates = (nodes) => {
         axios
             .post(window.HARDWARE_ADDRESS + "/classification", {
                 device: board.title,
-                nodes: chart.nodes
+                nodes: nodes
             })
             .then((resp) => {
                 let acc = resp.data.accuracy;
                 let matrix = resp.data.confusionMatrix;
                 let states = resp.data.states;
                 drawConfusionMatrix(matrix, states, acc);
+                console.log("update matrix: ", acc)
             })
     };
 
@@ -79,7 +76,7 @@ const CollagePanel = forwardRef((props, ref) => {
         let legendWidth = 15;
         let margin = 80;
 
-        let offsetX = 120;
+        let offsetX = 180;
         let offsetY = titleOffset + accuracyOffset + matrixOffset;
         let legendHeight = height - offsetY - margin;
 
