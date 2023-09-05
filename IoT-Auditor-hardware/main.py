@@ -71,6 +71,7 @@ group_cnt = 10
 
 classifier = None
 labels = []
+data_points = {}
 
 SEMANTIC_CLUSTERING = 0
 DATA_CLUSTERING = 1
@@ -206,7 +207,7 @@ async def collage(data: DataModel = Body(...)):
     new_X = []
     new_Y = []
     for action, nodes in action_node_dict.items():
-        states, ids, X, Y = build_dataset(data.device, nodes)
+        states, ids, X, Y, Y_true = build_dataset(data.device, nodes)
         semantic_distribution_dict = cluster_states(X, Y, SEMANTIC_CLUSTERING)
         semantic_node_collage_dict, semantic_group_idx = generate_collage_node(
             semantic_distribution_dict, ids, semantic_group_idx, semantic_node_collage_dict)
@@ -235,16 +236,36 @@ async def collage(data: DataModel = Body(...)):
 
 @app.post("/classification")
 async def classfication(data: DataModel = Body(...)):
-    global classifier, labels
-    states, ids, X, Y = build_dataset(data.device, data.nodes)
+    global classifier, labels, data_points
+    states, ids, X, Y, Y_true = build_dataset(data.device, data.nodes)
+    
+    # classification model
     clf, cms, acc = classify(states, X, Y)
     classifier = clf
     labels = states
 
+    # tsne dta points
+    data_points_info = []
+    if len(data_points) > 0:
+        data_points_info = data_points
+    else:
+        # tsne  
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        tsne = TSNE(n_components=2, perplexity=40, init="pca")
+        X_scaled = tsne.fit_transform(X_scaled)
+        for i in range(len(X_scaled)):
+            data_points_info.append({
+                "x": float(X_scaled[i][0]),
+                "y": float(X_scaled[i][1]),
+                "label": Y_true[i]
+            })
+        
     resp = {
         "accuracy": round(acc, 3),
         "confusionMatrix": cms,
-        "states": states
+        "states": states,
+        "dataPoints": data_points_info
     }
     return JSONResponse(content=jsonable_encoder(resp))
 
@@ -305,7 +326,7 @@ def action_match(nodes):
     return actions, action_node_dict, action_collage_dict
 
 
-def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, Y, independent=False):
+def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, Y, Y_true, independent=False):
     for node in target_nodes:
         if node["id"] not in collected_nodes:
             collected_nodes.append(node["id"])
@@ -316,8 +337,8 @@ def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, 
                 children = node["data"]["children"]
                 if len(children) > 0:
                     children_nodes = [n for n in nodes if n["id"] in children]
-                    labels, collected_nodes, X, Y = dfs_traverse_graph(
-                        device, nodes, children_nodes, labels, collected_nodes, X, Y)
+                    labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
+                        device, nodes, children_nodes, labels, collected_nodes, X, Y, Y_true)
             else:
                 avg_currents, max_currents, min_currents, times = get_data(
                     device, node["id"])
@@ -326,8 +347,9 @@ def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, 
                 for feature in features:
                     X.append(feature)
                     Y.append(len(labels) - 1)
+                    Y_true.append(node["id"])
 
-    return labels, collected_nodes, X, Y
+    return labels, collected_nodes, X, Y, Y_true
 
 
 def build_dataset(device, nodes):
@@ -335,17 +357,18 @@ def build_dataset(device, nodes):
     labels = []
     X = []
     Y = []
+    Y_true = []
 
     order = ["combinedNode", "semanticNode", "stateNode"]
     sorted_nodes = sorted(nodes, key=lambda x: order.index(x["type"]))
 
-    labels, collected_nodes, X, Y = dfs_traverse_graph(
-        device, sorted_nodes, sorted_nodes, labels, collected_nodes, X, Y, independent=True)
+    labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
+        device, sorted_nodes, sorted_nodes, labels, collected_nodes, X, Y, Y_true, independent=True)
 
     X = np.array(X)
     Y = np.array(Y)
 
-    return labels, collected_nodes, X, Y
+    return labels, collected_nodes, X, Y, Y_true
 
 
 def get_features(avg_currents, max_currents, min_currents):

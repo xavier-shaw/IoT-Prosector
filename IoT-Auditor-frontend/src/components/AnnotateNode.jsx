@@ -14,14 +14,14 @@ export default function AnnotateNode(props) {
   }
 
   return (
-    <>
+    <div className='nodrag'>
       <Handle type="target" position={Position.Left} />
       {editable ?
-        <TextField size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag' />
+        <TextField size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} />
         :
-        <h5 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{stateName}</h5>
+        <h5 style={{ fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{stateName}</h5>
       }
       <Handle type="source" position={Position.Right} />
-    </>
+    </div>
   );
 }

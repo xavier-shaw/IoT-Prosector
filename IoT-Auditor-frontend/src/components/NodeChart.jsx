@@ -35,8 +35,8 @@ const FlowChart = forwardRef((props, ref) => {
     const [autoLayoutMode, setAutoLayoutMode] = useState(true);
     const [semanticHints, setSemanticHints] = useState({});
     const [dataHints, setDataHints] = useState({});
-    const nodeTypes_explore = useMemo(() => ({ stateNode: ExploreNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
-    const nodeTypes_annotate = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
+    const nodeTypes_explore = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
+    const nodeTypes_annotate = useMemo(() => ({ stateNode: ExploreNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
     const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
 
@@ -122,14 +122,16 @@ const FlowChart = forwardRef((props, ref) => {
                     }
                 }
 
-                autoLayout(newNodes, true);
+                layout(newNodes);
+                updateMatrix(nodes);
+                setChart((prevChart) => ({ ...prevChart, nodes: nodes }));
                 setEdges(newEdges);
                 setSemanticHints(semanticHints);
                 setDataHints(dataHints);
             })
     };
 
-    const changeWidth = (parentNode, LAYOUT = false) => {
+    const changeWidth = (parentNode) => {
         if (parentNode.type === "semanticNode") {
             return semanticNodeStyle.width;
         }
@@ -188,24 +190,6 @@ const FlowChart = forwardRef((props, ref) => {
 
     const changeLayoutMode = () => {
         setAutoLayoutMode((prev) => (!prev));
-    };
-
-    const autoLayout = (nodes, needUpdate = false) => {
-        switch (step) {
-            case 0:
-                layout(nodes);
-                break;
-            case 1:
-                layout(nodes);
-            default:
-                break;
-        }
-
-        if (needUpdate) {
-            updateMatrix(nodes);
-        }
-
-        console.log(nodes);
     };
 
     const layout = (nodes) => {
@@ -356,7 +340,7 @@ const FlowChart = forwardRef((props, ref) => {
         switch (type) {
             case "semanticNode":
                 zIndex = 1;
-                nodeData.label = "Semantic Node"
+                nodeData.label = "State Group"
                 nodeStyle = semanticNodeStyle;
                 break;
             case "combinedNode":
@@ -507,7 +491,11 @@ const FlowChart = forwardRef((props, ref) => {
             })
         }
 
-        autoLayout(newNodes, needUpdate);
+        if (needUpdate) {
+            updateMatrix(nodes);
+            setChart((prevChart) => ({...prevChart, nodes: nodes}));
+        }
+
         setEdges(newEdges);
         setTarget(null);
         setOnDragging(false);
@@ -630,7 +618,7 @@ const FlowChart = forwardRef((props, ref) => {
                     fitView
                 >
                     <Panel position="top-right">
-                        <button onClick={() => { autoLayout(nodes) }}>Layout</button>
+                        <button onClick={() => { layout(nodes) }}>Layout</button>
                     </Panel>
                     <Background />
                     <Controls />
@@ -655,9 +643,8 @@ const FlowChart = forwardRef((props, ref) => {
                     fitView
                 >
                     <Panel position="top-right">
-                        <button onClick={changeLayoutMode}>{autoLayoutMode ? "Auto" : "Manual"} Layout</button>
                         <div className='mode-node-div' onDragStart={(event) => onDragStart(event, 'semanticNode')} draggable>
-                            Group State
+                            State Group
                         </div>
                     </Panel>
                     <Background />

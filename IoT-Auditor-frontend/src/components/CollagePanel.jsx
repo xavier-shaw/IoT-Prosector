@@ -12,12 +12,12 @@ const CollagePanel = forwardRef((props, ref) => {
     const [prevNodeVideo, setPrevNodeVideo] = useState(null);
     const [actionVideo, setActionVideo] = useState(null);
     const [figure, setFigure] = useState("confusion matrix");
-    const [matrixData, setMatrixData] = useState({});
+    const [classificationData, setClassificationData] = useState({});
     const [hint, setHint] = useState("");
     const graphWidth = 670;
-    const graphHeight = 510;
-    const videoWidth = 200;
-    const videoHeight = 200;
+    const graphHeight = 500;
+    const videoWidth = 190;
+    const videoHeight = 190;
 
     useImperativeHandle(ref, () => ({
         classifyStates,
@@ -32,6 +32,7 @@ const CollagePanel = forwardRef((props, ref) => {
             let node_id = chartSelection.id;
             let prev_id = chartSelection.data.prev;
             let curNode = chart.nodes.find((e) => e.id === node_id);
+            console.log("selected", curNode);
             setSelectedNode(curNode);
             setVideoById(node_id, setSelectedNodeVideo);
             if (prev_id) {
@@ -45,6 +46,10 @@ const CollagePanel = forwardRef((props, ref) => {
                 setPrevNode(null);
                 setPrevNodeVideo(null);
                 setActionVideo(null);
+            }
+
+            if (figure === "distribution") {
+                drawScatterplot(classificationData, chart.nodes, curNode);
             }
         }
     }, [chartSelection]);
@@ -64,19 +69,27 @@ const CollagePanel = forwardRef((props, ref) => {
                 nodes: nodes
             })
             .then((resp) => {
-                let matrixData = {
+                let classificationData = {
                     accuracy: resp.data.accuracy,
                     matrix: resp.data.confusionMatrix,
-                    states: resp.data.states
+                    states: resp.data.states,
+                    dataPoints: resp.data.dataPoints
                 }
+                
+                let node = nodes.find((n) => n.id === selectedNode?.id);
+                setSelectedNode(node);
 
-                drawConfusionMatrix(matrixData);
-                setMatrixData(matrixData);
-                console.log("update matrix: ", acc);
+                if (figure === "confusion matrix") {
+                    drawConfusionMatrix(classificationData);
+                }
+                else if (figure === "distribution") {
+                    drawScatterplot(classificationData, nodes, node);
+                }
+                setClassificationData(classificationData);
             })
     };
 
-    const drawConfusionMatrix = (matrixData) => {
+    const drawConfusionMatrix = (classificationData) => {
         let accuracyOffset = 30;
         let matrixOffset = 10;
         let labelOffset = 5;
@@ -89,8 +102,8 @@ const CollagePanel = forwardRef((props, ref) => {
         let offsetY = accuracyOffset + matrixOffset;
         let legendHeight = graphHeight - offsetY - margin;
 
-        document.getElementById("confusion-matrix").innerHTML = "";
-        let svg = d3.select("#confusion-matrix").append("svg")
+        document.getElementById("graph-panel").innerHTML = "";
+        let svg = d3.select("#graph-panel").append("svg")
             .attr("width", graphWidth)
             .attr("height", graphHeight);
 
@@ -99,7 +112,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("y", accuracyOffset)
             .attr("font-size", 20)
             .style("text-anchor", "middle")
-            .text("Average Accuracy: " + matrixData.accuracy);
+            .text("Average Accuracy: " + classificationData.accuracy);
 
         // svg.append("text")
         //     .attr("x", 15)
@@ -110,15 +123,13 @@ const CollagePanel = forwardRef((props, ref) => {
         //     .style("writing-mode", "tb")
         //     .style("glyph-orientation-vertical", 90)
 
-        let cellSize = legendHeight / matrixData.matrix.length;
-        // let colorScale = d3.scaleSequential(d3.interpolateRgbBasis(["#FFFFDD", "#3E9583", "#1F2D86"]))
-        //     .domain([0, 1])
+        let cellSize = legendHeight / classificationData.matrix.length;
         let colorScale = d3.scaleLinear()
             .domain([0, 0.5, 1])
             .range(["#FFFFDD", "#3E9583", "#1F2D86"])
 
         svg.selectAll('rect')
-            .data(matrixData.matrix)
+            .data(classificationData.matrix)
             .enter().append('g')
             .attr("transform", function (d, i) {
                 return "translate(" + offsetX + ", " + (i * cellSize + offsetY) + ")"
@@ -134,7 +145,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr('stroke', 'black')
 
         svg.selectAll('.states-text')
-            .data(matrixData.matrix)
+            .data(classificationData.matrix)
             .enter().append('g')
             .attr("transform", function (d, i) {
                 return "translate(" + offsetX + ", " + (i * cellSize + offsetY) + ")"
@@ -150,7 +161,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .text(d => d);
 
         svg.selectAll('.true-states')
-            .data(matrixData.states)
+            .data(classificationData.states)
             .enter()
             .append('text')
             .text((d) => d)
@@ -161,7 +172,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("font-size", 16)
 
         svg.selectAll('.predict-states')
-            .data(matrixData.states)
+            .data(classificationData.states)
             .enter()
             .append('text')
             .text((d) => d)
@@ -170,7 +181,6 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("text-anchor", "end")
             .attr("font-size", 16)
             .attr("transform", (d, i) => "rotate(" + labelRotate + " " + (offsetX + i * cellSize + cellSize / 2) + " " + (offsetY + legendHeight + labelOffset + 10) + ")")
-
 
         //Calculate the variables for gradient
         var gradientScale = d3.scaleLinear()
@@ -218,19 +228,88 @@ const CollagePanel = forwardRef((props, ref) => {
         var xAxis = d3.axisRight(xScale)
             .ticks(5)
 
-
         legendsvg.append("g")
             .attr("transform", "translate(" + legendWidth + ",0)")
             .call(xAxis);
     };
 
+    const drawScatterplot = (classificationData, nodes, selectedNode) => {
+        let data = classificationData.dataPoints;
+        let margin = 10;
+
+        document.getElementById("graph-panel").innerHTML = "";
+        let svg = d3.select("#graph-panel").append("svg")
+            .attr("width", graphWidth)
+            .attr("height", graphHeight);
+
+        let xScaler = d3.scaleLinear()
+            .domain([d3.min(data, d => d.x), d3.max(data, d => d.x)])
+            .range([margin, graphWidth - margin]);
+
+        let yScaler = d3.scaleLinear()
+            .domain([d3.min(data, d => d.y), d3.max(data, d => d.y)])
+            .range([margin, graphHeight - margin]);
+
+        svg.append("g")
+            .attr("transform", `translate(0,${graphHeight / 2 - margin})`)
+            .call(d3.axisBottom(xScaler))
+
+        svg.append("g")
+            .attr("transform", `translate(${graphWidth / 2 - margin},0)`)
+            .call(d3.axisLeft(yScaler))
+
+        const customColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
+            '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8',
+            '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000'];
+        const color = d3.scaleOrdinal()
+            .domain(data.map(d => d.label))
+            .range(customColors);
+
+        if (selectedNode) {
+            svg.append("g")
+                .attr("fill", "none")
+                .selectAll("circle")
+                .data(data)
+                .join("circle")
+                .attr("fill", d => {
+                    if (d.label === selectedNode.id) {
+                        return "blue";
+                    }
+                    else if (selectedNode.parentNode) {
+                        let parent = nodes.find((n) => n.id === selectedNode.parentNode);
+                        if (parent.data.children.includes(d.label)) {
+                            return "skyblue";
+                        }
+                        else {
+                            return "lightgrey";
+                        }
+                    }
+                    else {
+                        return "lightgrey";
+                    }
+                })
+                .attr("transform", d => `translate(${xScaler(d.x)},${yScaler(d.y)})`)
+                .attr("r", 3);
+        }
+        else {
+            svg.append("g")
+                .attr("fill", "none")
+                .selectAll("circle")
+                .data(data)
+                .join("circle")
+                .attr("fill", d => color(d.label))
+                .attr("transform", d => `translate(${xScaler(d.x)},${yScaler(d.y)})`)
+                .attr("r", 3);
+        }
+    };
+
     const handleClickSelect = (type) => {
         setFigure(type);
         if (type === "confusion matrix") {
-            drawConfusionMatrix(matrixData);
+            drawConfusionMatrix(classificationData);
         }
         else if (type === "distribution") {
-            console.log()
+            drawScatterplot(classificationData, chart.nodes, selectedNode);
         }
     };
 
@@ -266,13 +345,10 @@ const CollagePanel = forwardRef((props, ref) => {
                     Distribution
                 </Button>
             </div>
-            <div id="confusion-matrix">
-                <Skeleton className="m-auto" variant="rectangular" animation="wave" width={600} height={550} />
+            <div id="graph-panel">
+                <Skeleton className="m-auto" variant="rectangular" animation="wave" width={graphWidth} height={graphHeight} />
             </div>
 
-            {/* TODO: 1. Stepwise Debugging => State Info (video + timewise-next-state + related action / labeled action) 
-                      2. Group Node and Split Node => change should be demonstrated by confusion matrix  
-            */}
             <h4>State Information</h4>
             <div className="d-flex justify-content-evenly">
                 <Button variant={hint === "semantic" ? "contained" : "outlined"} color={hint === "semantic" ? "success" : "primary"}
@@ -316,7 +392,6 @@ const CollagePanel = forwardRef((props, ref) => {
             {(selectedNode === null || selectedNodeVideo === null) &&
                 <Grid container columnSpacing={1}>
                     <Grid item xs={4}>
-                        {/* <Skeleton variant="h6" animation={false}/> */}
                         <Skeleton className="m-auto" variant="rectangular" animation={false} width={videoWidth} height={videoHeight} />
                     </Grid>
                     <Grid item xs={4}>
