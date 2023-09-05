@@ -55,8 +55,7 @@ export default function Board(props) {
         }
     }, [chart])
 
-    const handleClickNext = async () => {
-        await onSave();
+    const handleClickNext = () => {
         setStep((prevStep) => (prevStep + 1));
     };
 
@@ -92,16 +91,37 @@ export default function Board(props) {
     const startCollage = async () => {
         await nodeChartRef.current.collageStates();
         setOpenDiaglog(true);
-    }
+    };
 
     const endCollage = () => {
-        nodeChartRef.current.updateAnnotation();
         setOpenDiaglog(false);
-    }
+    };
 
     const updateMatrix = (nodes) => {
         collagePanelRef.current.classifyStates(nodes);
-    }
+    };
+
+    const showHints = (node, type) => {
+        if (type === "semantic") {
+            nodeChartRef.current.showSemanticHints(node);
+        }
+        else if (type === "data") {
+            nodeChartRef.current.showDataHints(node);
+        }
+    };
+
+    const hideHints = (node, type) => {
+        if (type === "semantic") {
+            nodeChartRef.current.hideSemanticHints(node);
+        }
+        else if (type === "data") {
+            nodeChartRef.current.hideDataHints(node);
+        }
+        else if (type === "all") {
+            nodeChartRef.current.hideSemanticHints(node);
+            nodeChartRef.current.hideDataHints(node);
+        }
+    };
 
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
         let newChart = { ...chart };
@@ -211,7 +231,7 @@ export default function Board(props) {
             <Helmet>
                 <title>{board.title}</title>
             </Helmet>
-            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} isSensing={isSensing} />
+            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext}/>
             <div className="main-board-div">
                 <div className="top-side-div">
                     <h6>You are now at the {stages[step]} Stage.</h6>
@@ -232,13 +252,12 @@ export default function Board(props) {
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={7} className="panel-div">
                         <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                            setChartSelection={setChartSelection} updateMatrix={updateMatrix}/>
+                            setChartSelection={setChartSelection} updateMatrix={updateMatrix} />
                     </Grid>
                     {(() => {
                         switch (step) {
                             case 0:
                                 return (
-
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
                                         <div className="table-div">
                                             <InstructionTable instructions={instructions} setInstructions={setInstructions} addAction={addAction} status={status} />
@@ -252,7 +271,8 @@ export default function Board(props) {
                             case 1:
                                 return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
-                                        <CollagePanel ref={collagePanelRef} board={board} chart={chart} chartSelection={chartSelection} />
+                                        <CollagePanel ref={collagePanelRef} board={board} chart={chart} chartSelection={chartSelection}
+                                            showHints={showHints} hideHints={hideHints} />
                                     </Grid>
                                 );
                             case 2:

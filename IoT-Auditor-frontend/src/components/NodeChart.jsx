@@ -14,27 +14,6 @@ import "./NodeChart.css";
 import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight } from "../shared/chartStyle";
 import axios from "axios";
 import CombinedNode from "./CombinedNode";
-import { max } from "d3";
-
-const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-
-const getLayoutedElements = (nodes, edges, options) => {
-    g.setGraph({ rankdir: options.direction, ranksep: 150 });
-
-    edges.forEach((edge) => g.setEdge(edge.source, edge.target));
-    nodes.forEach((node) => g.setNode(node.id, node));
-
-    Dagre.layout(g);
-
-    return {
-        nodes: nodes.map((node) => {
-            const { x, y } = g.node(node.id);
-
-            return { ...node, position: { x, y } };
-        }),
-        edges,
-    };
-};
 
 const NodeChart = forwardRef((props, ref) => {
     return (
@@ -45,7 +24,7 @@ const NodeChart = forwardRef((props, ref) => {
 })
 
 const FlowChart = forwardRef((props, ref) => {
-    let { board, chart, setChart, step, setChartSelection, updateMatrix } = props;
+    let { board, chart, setChart, step, setChartSelection, updateMatrix, setHints } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -54,6 +33,8 @@ const FlowChart = forwardRef((props, ref) => {
     const [onDragging, setOnDragging] = useState(false);
     const [target, setTarget] = useState(null);
     const [autoLayoutMode, setAutoLayoutMode] = useState(true);
+    const [semanticHints, setSemanticHints] = useState({});
+    const [dataHints, setDataHints] = useState({});
     const nodeTypes_explore = useMemo(() => ({ stateNode: ExploreNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
     const nodeTypes_annotate = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
     const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
@@ -74,7 +55,11 @@ const FlowChart = forwardRef((props, ref) => {
 
     useImperativeHandle(ref, () => ({
         updateAnnotation,
-        collageStates
+        collageStates,
+        showSemanticHints,
+        showDataHints,
+        hideSemanticHints,
+        hideDataHints
     }));
 
     const collageStates = async () => {
@@ -85,6 +70,8 @@ const FlowChart = forwardRef((props, ref) => {
             })
             .then((resp) => {
                 console.log(resp)
+                let action_group_count = resp.data.action_group_count;
+                let action_collage_dict = resp.data.action_collage_dict;
                 let semantic_group_cnt = resp.data.semantic_group_cnt;
                 let semantic_collage_dict = resp.data.semantic_collage_dict;
                 let combined_group_cnt = resp.data.combined_group_cnt;
@@ -92,17 +79,20 @@ const FlowChart = forwardRef((props, ref) => {
 
                 let newNodes = [...nodes];
                 let newEdges = [...edges];
-                let semanticNodes = [];
 
-                for (let index = 0; index < semantic_group_cnt; index++) {
+                for (let index = 0; index < action_group_count; index++) {
                     let semanticNode = createNewNode({ x: semanticNodeMarginX + semanticNodeOffsetX * index, y: semanticNodeMarginY }, "semanticNode");
                     semanticNode.data.label += " " + index;
-                    for (const [nid, cid] of Object.entries(semantic_collage_dict)) {
+                    for (const [nid, cid] of Object.entries(action_collage_dict)) {
                         if (cid === index) {
                             let node = newNodes.find((n) => n.id === nid);
                             semanticNode.data.children = [...semanticNode.data.children, node.id];
                             node.parentNode = semanticNode.id;
                             node.position = { x: childNodeoffsetX, y: childNodeMarginY + (semanticNode.data.children.length - 1) * childNodeoffsetY };
+                            node.positionAbsolute = {
+                                x: semanticNode.positionAbsolute.x + node.position.x,
+                                y: semanticNode.positionAbsolute.y + node.position.y
+                            };
                             if (semanticNode.data.children.length > 1) {
                                 semanticNode.style = { ...semanticNode.style, height: parseInt(semanticNode.style.height.slice(0, -2)) + childNodeoffsetY + "px" };
                             }
@@ -110,56 +100,32 @@ const FlowChart = forwardRef((props, ref) => {
                     };
                     newEdges = hiddenInsideEdges(newEdges, semanticNode.data.children);
                     newNodes.push(semanticNode);
-                    semanticNodes.push(semanticNode);
                 };
 
-                let prevCombinedNode = null;
-                for (let index = 0; index < combined_group_cnt; index++) {
-                    let combinedNodePosition;
-                    if (prevCombinedNode) {
-                        combinedNodePosition = {
-                            x: prevCombinedNode.position.x + parseInt(prevCombinedNode.style.width.slice(0, -2)) + combinedNodeOffsetX,
-                            y: combinedNodeMarginY
-                        }
-                    }
-                    else {
-                        combinedNodePosition = {
-                            x: combinedNodeMarginX,
-                            y: combinedNodeMarginY
-                        }
-                    }
-
-                    let combinedNode = createNewNode(combinedNodePosition, "combinedNode");
-                    combinedNode.data.label += " " + index;
-                    let completedSids = [];
-                    for (const [nid, cid] of Object.entries(combined_collage_dict)) {
+                let semanticHints = {};
+                for (let index = 0; index < semantic_group_cnt; index++) {
+                    semanticHints[index] = [];
+                    for (const [nid, cid] of Object.entries(semantic_collage_dict)) {
                         if (cid === index) {
-                            let sidx = semantic_collage_dict[nid];
-                            if (completedSids.indexOf(sidx) !== -1) {
-                                continue;
-                            }
-                            completedSids.push(sidx);
-                            let semanticNode = semanticNodes[sidx];
-                            combinedNode.data.children.push(semanticNode.id);
-                            semanticNode.parentNode = combinedNode.id;
-                            semanticNode.position = {
-                                x: childSemanticNodeMarginX + (combinedNode.data.children.length - 1) * childSemanticNodeOffsetX,
-                                y: childSemanticNodeOffsetY
-                            };
-                            semanticNode.positionAbsolute = {
-                                x: combinedNode.position.x + semanticNode.position.x,
-                                y: combinedNode.position.y + combinedNode.position.y
-                            }
+                            semanticHints[index].push(nid);
                         }
                     };
+                }
 
-                    combinedNode.style = { ...combinedNode.style, width: changeWidth(combinedNode), height: changeHeight(newNodes, combinedNode) };
-                    newNodes.push(combinedNode);
-                    prevCombinedNode = combinedNode;
+                let dataHints = {};
+                for (let index = 0; index < combined_group_cnt; index++) {
+                    dataHints[index] = [];
+                    for (const [nid, cid] of Object.entries(combined_collage_dict)) {
+                        if (cid === index) {
+                            dataHints[index].push(nid);
+                        }
+                    }
                 }
 
                 autoLayout(newNodes, true);
                 setEdges(newEdges);
+                setSemanticHints(semanticHints);
+                setDataHints(dataHints);
             })
     };
 
@@ -227,10 +193,10 @@ const FlowChart = forwardRef((props, ref) => {
     const autoLayout = (nodes, needUpdate = false) => {
         switch (step) {
             case 0:
-                onInteractionLayout(nodes);
+                layout(nodes);
                 break;
             case 1:
-                onCollageLayout(nodes);
+                layout(nodes);
             default:
                 break;
         }
@@ -242,25 +208,41 @@ const FlowChart = forwardRef((props, ref) => {
         console.log(nodes);
     };
 
-    const onInteractionLayout = (nodes) => {
+    const layout = (nodes) => {
         let newNodes = [...nodes];
         let nextRowY = 0;
-
-        newNodes.map((node, index) => {
-            if (index % layoutRowNum === 0 && index !== 0) {
-                for (let i = index - 1; i >= index - layoutRowNum; i--) {
-                    let prevNode = newNodes[i];
-                    if (prevNode.position.y + parseInt(prevNode.style.height.slice(0, -2)) > nextRowY) {
-                        nextRowY = prevNode.position.y + parseInt(prevNode.style.height.slice(0, -2));
-                    };
+        let index = 0;
+        let layoutNodes = [];
+        newNodes.map((node) => {
+            if (!node.parentNode) {
+                if (index % layoutRowNum === 0 && index !== 0) {
+                    for (let i = index - 1; i >= index - layoutRowNum; i--) {
+                        let prevNode = layoutNodes[i];
+                        if (prevNode.position.y + parseInt(prevNode.style.height.slice(0, -2)) > nextRowY) {
+                            nextRowY = prevNode.position.y + parseInt(prevNode.style.height.slice(0, -2));
+                        };
+                    }
                 }
-            }
-            node.position = { x: nodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY }
+                node.position = { x: nodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY };
+                node.positionAbsolute = { x: nodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY };
+                if (node.data.children?.length > 0) {
+                    for (const childId of node.data.children) {
+                        let child = newNodes.find((n) => n.id === childId);
+                        child.positionAbsolute = {
+                            x: node.positionAbsolute.x + child.position.x,
+                            y: node.positionAbsolute.y + child.position.y
+                        }
+                    }
+                }
+                layoutNodes.push(node);
+                index += 1;
+            };
+
             return node;
         })
 
         setNodes(newNodes);
-    }
+    };
 
     const onCollageLayout = (nodes) => {
         let newNodes = [...nodes];
@@ -275,7 +257,7 @@ const FlowChart = forwardRef((props, ref) => {
                     prevNode = node;
                 }
             }
-            
+
             if (node.type === "combinedNode") {
                 let children = node.data.children;
                 let nextRowY = 0;
@@ -311,7 +293,60 @@ const FlowChart = forwardRef((props, ref) => {
         });
 
         setNodes(newNodes);
-    }
+    };
+
+    const showSemanticHints = (node) => {
+        let newNodes = [...nodes];
+        for (const children of Object.values(semanticHints)) {
+            if (children.includes(node.id)) {
+                for (const nid of children) {
+                    let semanticNode = newNodes.find((n) => n.id === nid);
+                    semanticNode.style = { ...semanticNode.style, animation: "wiggle 1s infinite" }
+                }
+            }
+        }
+        setNodes(newNodes);
+    };
+
+    const hideSemanticHints = (node) => {
+        let newNodes = [...nodes];
+        for (const children of Object.values(semanticHints)) {
+            if (children.includes(node.id)) {
+                for (const nid of children) {
+                    let semanticNode = newNodes.find((n) => n.id === nid);
+                    semanticNode.style = { ...semanticNode.style, animation: "" }
+                }
+            }
+        }
+        setNodes(newNodes);
+    };
+
+    const showDataHints = (node) => {
+        let newNodes = [...nodes];
+        for (const children of Object.values(dataHints)) {
+            if (children.includes(node.id)) {
+                for (const nid of children) {
+                    console.log("data", nid);
+                    let dataNode = newNodes.find((n) => n.id === nid);
+                    dataNode.style = { ...dataNode.style, animation: "wiggle 1s infinite" }
+                }
+            }
+        }
+        setNodes(newNodes);
+    };
+
+    const hideDataHints = (node) => {
+        let newNodes = [...nodes];
+        for (const children of Object.values(dataHints)) {
+            if (children.includes(node.id)) {
+                for (const nid of children) {
+                    let dataNode = newNodes.find((n) => n.id === nid);
+                    dataNode.style = { ...dataNode.style, animation: "" }
+                }
+            }
+        };
+        setNodes(newNodes);
+    };
 
     const createNewNode = (position, type) => {
         let zIndex;

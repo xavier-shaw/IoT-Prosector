@@ -1,25 +1,34 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import * as d3 from "d3";
 import "./CollagePanel.css";
-import { Grid, Skeleton } from "@mui/material";
+import { Button, Grid, Skeleton } from "@mui/material";
 import axios from "axios";
 
 const CollagePanel = forwardRef((props, ref) => {
-    let { board, chart, chartSelection } = props;
+    let { board, chart, chartSelection, showHints, hideHints } = props;
     const [selectedNode, setSelectedNode] = useState(null);
     const [selectedNodeVideo, setSelectedNodeVideo] = useState(null);
     const [prevNode, setPrevNode] = useState(null);
     const [prevNodeVideo, setPrevNodeVideo] = useState(null);
     const [actionVideo, setActionVideo] = useState(null);
+    const [figure, setFigure] = useState("confusion matrix");
+    const [matrixData, setMatrixData] = useState({});
+    const [hint, setHint] = useState("");
+    const graphWidth = 670;
+    const graphHeight = 510;
     const videoWidth = 200;
     const videoHeight = 200;
 
     useImperativeHandle(ref, () => ({
-        classifyStates
+        classifyStates,
     }));
 
     useEffect(() => {
         if (chartSelection.type === "stateNode") {
+            if (selectedNode) {
+                hideHints(selectedNode, "all");
+                setHint("");
+            }
             let node_id = chartSelection.id;
             let prev_id = chartSelection.data.prev;
             let curNode = chart.nodes.find((e) => e.id === node_id);
@@ -55,18 +64,19 @@ const CollagePanel = forwardRef((props, ref) => {
                 nodes: nodes
             })
             .then((resp) => {
-                let acc = resp.data.accuracy;
-                let matrix = resp.data.confusionMatrix;
-                let states = resp.data.states;
-                drawConfusionMatrix(matrix, states, acc);
-                console.log("update matrix: ", acc)
+                let matrixData = {
+                    accuracy: resp.data.accuracy,
+                    matrix: resp.data.confusionMatrix,
+                    states: resp.data.states
+                }
+
+                drawConfusionMatrix(matrixData);
+                setMatrixData(matrixData);
+                console.log("update matrix: ", acc);
             })
     };
 
-    const drawConfusionMatrix = (confusionMatrix, states, accuracy) => {
-        let width = 650;
-        let height = 550;
-        let titleOffset = 30;
+    const drawConfusionMatrix = (matrixData) => {
         let accuracyOffset = 30;
         let matrixOffset = 10;
         let labelOffset = 5;
@@ -75,40 +85,32 @@ const CollagePanel = forwardRef((props, ref) => {
         let legendOffsetY = 0;
         let legendWidth = 15;
         let margin = 80;
-
-        let offsetX = 180;
-        let offsetY = titleOffset + accuracyOffset + matrixOffset;
-        let legendHeight = height - offsetY - margin;
+        let offsetX = 150;
+        let offsetY = accuracyOffset + matrixOffset;
+        let legendHeight = graphHeight - offsetY - margin;
 
         document.getElementById("confusion-matrix").innerHTML = "";
         let svg = d3.select("#confusion-matrix").append("svg")
-            .attr("width", width)
-            .attr("height", height);
+            .attr("width", graphWidth)
+            .attr("height", graphHeight);
 
         svg.append("text")
-            .attr("x", width / 2)
-            .attr("y", titleOffset)
-            .attr("font-size", 30)
-            .style("text-anchor", "middle")
-            .text("Confusion Matrix");
-
-        svg.append("text")
-            .attr("x", width / 2)
-            .attr("y", titleOffset + accuracyOffset)
+            .attr("x", graphWidth / 2)
+            .attr("y", accuracyOffset)
             .attr("font-size", 20)
             .style("text-anchor", "middle")
-            .text("Average Accuracy: " + accuracy);
+            .text("Average Accuracy: " + matrixData.accuracy);
 
-        svg.append("text")
-            .attr("x", 15)
-            .attr("y", offsetY + legendHeight / 2)
-            .attr("font-size", 20)
-            .style("text-anchor", "middle")
-            .text("True Labels")
-            .style("writing-mode", "tb")
-            .style("glyph-orientation-vertical", 90)
+        // svg.append("text")
+        //     .attr("x", 15)
+        //     .attr("y", offsetY + legendHeight / 2)
+        //     .attr("font-size", 20)
+        //     .style("text-anchor", "middle")
+        //     .text("True Labels")
+        //     .style("writing-mode", "tb")
+        //     .style("glyph-orientation-vertical", 90)
 
-        let cellSize = legendHeight / confusionMatrix.length;
+        let cellSize = legendHeight / matrixData.matrix.length;
         // let colorScale = d3.scaleSequential(d3.interpolateRgbBasis(["#FFFFDD", "#3E9583", "#1F2D86"]))
         //     .domain([0, 1])
         let colorScale = d3.scaleLinear()
@@ -116,7 +118,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .range(["#FFFFDD", "#3E9583", "#1F2D86"])
 
         svg.selectAll('rect')
-            .data(confusionMatrix)
+            .data(matrixData.matrix)
             .enter().append('g')
             .attr("transform", function (d, i) {
                 return "translate(" + offsetX + ", " + (i * cellSize + offsetY) + ")"
@@ -132,7 +134,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr('stroke', 'black')
 
         svg.selectAll('.states-text')
-            .data(confusionMatrix)
+            .data(matrixData.matrix)
             .enter().append('g')
             .attr("transform", function (d, i) {
                 return "translate(" + offsetX + ", " + (i * cellSize + offsetY) + ")"
@@ -148,7 +150,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .text(d => d);
 
         svg.selectAll('.true-states')
-            .data(states)
+            .data(matrixData.states)
             .enter()
             .append('text')
             .text((d) => d)
@@ -159,7 +161,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("font-size", 16)
 
         svg.selectAll('.predict-states')
-            .data(states)
+            .data(matrixData.states)
             .enter()
             .append('text')
             .text((d) => d)
@@ -222,9 +224,48 @@ const CollagePanel = forwardRef((props, ref) => {
             .call(xAxis);
     };
 
+    const handleClickSelect = (type) => {
+        setFigure(type);
+        if (type === "confusion matrix") {
+            drawConfusionMatrix(matrixData);
+        }
+        else if (type === "distribution") {
+            console.log()
+        }
+    };
+
+    const handleShowSemanticHints = () => {
+        if (hint === "semantic") {
+            setHint("");
+            hideHints(selectedNode, "semantic");
+        }
+        else {
+            setHint("semantic");
+            showHints(selectedNode, "semantic");
+        }
+    };
+
+    const handleShowDataHints = () => {
+        if (hint === "data") {
+            setHint("");
+            hideHints(selectedNode, "data");
+        }
+        else {
+            setHint("data");
+            showHints(selectedNode, "data");
+        }
+    };
 
     return (
         <div className="collage-panel-div">
+            <div className="select-panel">
+                <Button variant={figure === "confusion matrix" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("confusion matrix")}>
+                    Confusion Matrix
+                </Button>
+                <Button variant={figure === "distribution" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("distribution")}>
+                    Distribution
+                </Button>
+            </div>
             <div id="confusion-matrix">
                 <Skeleton className="m-auto" variant="rectangular" animation="wave" width={600} height={550} />
             </div>
@@ -232,7 +273,17 @@ const CollagePanel = forwardRef((props, ref) => {
             {/* TODO: 1. Stepwise Debugging => State Info (video + timewise-next-state + related action / labeled action) 
                       2. Group Node and Split Node => change should be demonstrated by confusion matrix  
             */}
-            <h3>State Information</h3>
+            <h4>State Information</h4>
+            <div className="d-flex justify-content-evenly">
+                <Button variant={hint === "semantic" ? "contained" : "outlined"} color={hint === "semantic" ? "success" : "primary"}
+                    disabled={hint === "data" || !selectedNode} size="small" onClick={handleShowSemanticHints}>
+                    Semantic Hint
+                </Button>
+                <Button variant={hint === "data" ? "contained" : "outlined"} color={hint === "data" ? "success" : "primary"}
+                    disabled={hint === "semantic" || !selectedNode} size="small" onClick={handleShowDataHints}>
+                    Data Hint
+                </Button>
+            </div>
             <div className="state-info-div">
                 {prevNode && prevNodeVideo &&
                     <div>
@@ -251,7 +302,7 @@ const CollagePanel = forwardRef((props, ref) => {
                 {!prevNode && selectedNode &&
                     <h5>No previous state or action</h5>
                 }
-                {!selectedNode && 
+                {!selectedNode &&
                     <h5>Please select a state or action</h5>
                 }
                 {selectedNode && selectedNodeVideo &&

@@ -202,8 +202,7 @@ async def collage(data: DataModel = Body(...)):
     semantic_group_idx = 0
     semantic_node_collage_dict = {}
 
-    actions, action_node_dict = action_match(data.nodes)
-    # print("action node dict", action_node_dict)
+    actions, action_node_dict, action_collage_dict = action_match(data.nodes)
     new_X = []
     new_Y = []
     for action, nodes in action_node_dict.items():
@@ -220,14 +219,17 @@ async def collage(data: DataModel = Body(...)):
         semantic_node_collage_dict, combined_distribution_dict, combined_group_idx)
 
     resp = {
+        "action_group_count": len(actions),
+        "action_collage_dict": action_collage_dict,
         "semantic_group_cnt": semantic_group_idx,
         "semantic_collage_dict": semantic_node_collage_dict,
         "combined_group_cnt": combined_group_idx,
         "combined_collage_dict": combined_node_collage_dict
     }
 
-    print(semantic_node_collage_dict)
-    print(combined_node_collage_dict)
+    print("action", action_collage_dict)
+    print("sementic-data", semantic_node_collage_dict)
+    print("data", combined_node_collage_dict)
     return JSONResponse(content=jsonable_encoder(resp))
 
 
@@ -288,15 +290,19 @@ def store_power_data(device, idx, max_currents, avg_currents, min_currents, time
 def action_match(nodes):
     actions = []
     action_node_dict = {}
+    action_collage_dict = {}
+
     for node in nodes:
         action = node["data"]["action"]
-        if action in action_node_dict:
+        if action in actions:
             action_node_dict[action].append(node)
         else:
             actions.append(action)
             action_node_dict[action] = [node]
+        
+        action_collage_dict[node["id"]] = actions.index(action)
 
-    return actions, action_node_dict
+    return actions, action_node_dict, action_collage_dict
 
 
 def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, Y, independent=False):
