@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Handle, Position } from 'reactflow';
-import { stateZIndex } from '../shared/chartStyle';
+import { childNodeMarginY, childNodeoffsetY, stateZIndex } from '../shared/chartStyle';
 
 export default function ExploreNode(props) {
   let { data } = props;

@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Handle, NodeResizeControl, Position } from 'reactflow';
 import { TextField } from '@mui/material';
-import { groupZIndex } from '../shared/chartStyle';
+import { groupZIndex, childNodeMarginY, childNodeoffsetY } from '../shared/chartStyle';
 
 export default function SemanticNode(props) {
     let { id, data } = props;
@@ -43,17 +43,24 @@ export default function SemanticNode(props) {
     };
 
     return (
-        <div style={{ zIndex: groupZIndex}}>
+        <div style={{ zIndex: groupZIndex }}>
             <NodeResizeControl controlStyle={controlStyle}>
                 <ResizeIcon />
             </NodeResizeControl>
-            <Handle type="target" position={Position.Left} />
+            {data.children.map((child, idx) => (
+                <Handle key={idx} type="target" id={"target-" + child} position={Position.Left}
+                    style={{ top: childNodeMarginY + idx * childNodeoffsetY + 37 }} />
+            ))}
             {/* {editable ?
                 <TextField value={nodeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
                 <h4 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{nodeName}</h4>
             } */}
-            <Handle type="source" position={Position.Right} />
+            {data.children.map((child, idx) => (
+                    <Handle key={idx} type="source" id={"source-" + child} position={Position.Right} 
+                    style={{ top: childNodeMarginY + idx * childNodeoffsetY + 37 }} />
+                )
+            )}
         </div>
     );
 }

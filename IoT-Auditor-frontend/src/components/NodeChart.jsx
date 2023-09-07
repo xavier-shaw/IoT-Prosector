@@ -13,9 +13,10 @@ import { v4 as uuidv4 } from "uuid";
 import "./NodeChart.css";
 import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors } from "../shared/chartStyle";
 import axios from "axios";
-import CombinedNode from "./CombinedNode";
-import { SmartBezierEdge } from '@tisoap/react-flow-smart-edge'
 import ELK from 'elkjs/lib/elk.bundled.js';
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
+import DisplayNode from "./DisplayNode";
+import DisplayEdge from "./DisplayEdge";
 
 const elk = new ELK();
 
@@ -82,12 +83,14 @@ const FlowChart = forwardRef((props, ref) => {
     const [semanticHints, setSemanticHints] = useState({});
     const [dataHints, setDataHints] = useState({});
     const [preview, setPreview] = useState(false);
-    const nodeTypes_explore = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
-    const nodeTypes_annotate = useMemo(() => ({ stateNode: ExploreNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
-    const nodeTypes_verify = useMemo(() => ({ stateNode: ExploreNode, semanticNode: ExploreNode }), []);
+    const [openRepresentDialog, setOpenRepresentDialog] = useState(false);
+    const [representNode, setRepresentNode] = useState(null);
+    const nodeTypes_explore = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode }), []);
+    const nodeTypes_annotate = useMemo(() => ({ stateNode: ExploreNode, semanticNode: SemanticNode }), []);
+    const nodeTypes_verify = useMemo(() => ({ stateNode: DisplayNode, semanticNode: DisplayNode }), []);
     const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
-    const edgeTypes_verify = useMemo(() => ({ transitionEdge: SmartBezierEdge }), []);
+    const edgeTypes_verify = useMemo(() => ({ transitionEdge: DisplayEdge }), []);
 
     useEffect(() => {
         if (chart.hasOwnProperty("nodes")) {
@@ -116,16 +119,23 @@ const FlowChart = forwardRef((props, ref) => {
     }));
 
     const onLayout = (newNodes, newEdges) => {
-        getLayoutedElements({
-            'elk.algorithm': 'org.eclipse.elk.force',
-            // 'elk.algorithm': 'org.eclipse.elk.radial"
-            // 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT'
-            // 'elk.algorithm': 'layered', 'elk.direction': 'DOWN'
-        });
+        if (autoLayoutMode) {
+            getLayoutedElements({
+                'elk.algorithm': 'org.eclipse.elk.force',
+                // 'elk.algorithm': 'org.eclipse.elk.radial"
+                // 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT'
+                // 'elk.algorithm': 'layered', 'elk.direction': 'DOWN'
+            });
 
-        window.requestAnimationFrame(() => {
-            fitView();
-        });
+            window.requestAnimationFrame(() => {
+                fitView();
+            });
+        }
+        else {
+            layout(newNodes, newEdges, false);
+        };
+
+        setAutoLayoutMode((prev) => (!prev));
     };
 
     const collageStates = async () => {
@@ -176,7 +186,6 @@ const FlowChart = forwardRef((props, ref) => {
                     }
                 };
 
-                newEdges = hiddenChildEdges(newNodes, newEdges);
                 let semanticHints = {};
                 for (let index = 0; index < semantic_group_cnt; index++) {
                     semanticHints[index] = [];
@@ -198,6 +207,7 @@ const FlowChart = forwardRef((props, ref) => {
                 }
 
                 layout(newNodes, newEdges, false);
+                newEdges = hiddenChildEdges(newNodes, newEdges);
                 updateMatrix(newNodes);
                 setChart((prevChart) => ({ ...prevChart, nodes: newNodes, edges: newEdges }));
                 setEdges(newEdges);
@@ -272,6 +282,9 @@ const FlowChart = forwardRef((props, ref) => {
         let index = 0;
         let layoutNodes = [];
         newNodes = newNodes.map((node) => {
+            // if (node.type === "stateNode") {
+            //     node.data.representative = node.data.label;
+            // }
             if (!node.parentNode) {
                 if (index % layoutRowNum === 0 && index !== 0) {
                     for (let i = index - 1; i >= index - layoutRowNum; i--) {
@@ -389,18 +402,46 @@ const FlowChart = forwardRef((props, ref) => {
 
     const generateFinalChart = () => {
         let newNodes = [];
-        let newEdges = [...edges];
+        let newEdges = [];
 
         for (const node of nodes) {
             if (!node.parentNode) {
-                let newNode = { ...node, style: displayNodeStyle };
+                let label = "";
+                if (node.data.representative) {
+                    label = node.data.representative;
+                }
+                else {
+                    for (const childId of node.data.children) {
+                        let child = nodes.find((n) => n.id === childId);
+                        label += child.data.label.split(" ")[0] + ", ";
+                    }
+                    label = label.slice(0, -2);
+                };
+
+                let newNode = { ...node, data: { ...node.data, representative: label }, style: displayNodeStyle };
                 newNodes.push(newNode);
             }
         };
+        
+        let edgeSet = {};
+        for (const edge of edges) {
+            let uniqueId = edge.source + "-" + edge.target;
+            if (!edgeSet.hasOwnProperty(uniqueId)) {
+                edgeSet[uniqueId] = edge;
+                edge.data.actions = [edge.data.label];
+            }
+            else {
+                if (!edgeSet[uniqueId].data.actions.includes(edge.data.label)) {
+                    edgeSet[uniqueId].data.actions.push(edge.data.label);                    
+                }
+            }
+        };
+        
+        for (const [key, value] of Object.entries(edgeSet)) {
+            newEdges.push(value);
+        }
 
         layout(newNodes, newEdges, true);
-        setDisplayNodes(newNodes);
-        setDisplayEdges(newEdges);
     };
 
     const createNewNode = (position, type) => {
@@ -545,6 +586,7 @@ const FlowChart = forwardRef((props, ref) => {
                 }
                 return n;
             })
+            newNodes = newNodes.filter((n) => !n.data.children || n.data.children?.length > 0);
         }
 
         newNodes = insideLayout(newNodes);
@@ -560,14 +602,37 @@ const FlowChart = forwardRef((props, ref) => {
         dragRef.current = null;
     };
 
+    const onNodeContextMenu = (event, node) => {
+        event.preventDefault();
+        if (node.parentNode) {
+            setRepresentNode(node);
+            setOpenRepresentDialog(true);
+        }
+    };
+
+    const onConfirmRepresentativeNode = () => {
+        let newNodes = [...nodes];
+        let parent = newNodes.find((n) => n.data.children?.includes(representNode.id));
+        parent.data.representative = representNode.data.label;
+        setNodes(newNodes);
+        onCloseDialog();
+    };
+
+    const onCloseDialog = () => {
+        setRepresentNode(null);
+        setOpenRepresentDialog(false);
+    };
+
     const revealOwnEdges = (edges, node) => {
         edges = edges.map((e) => {
             if (e.originalSource === node.id) {
                 e.source = node.id;
+                e.sourceHanlde = null;
                 e.hidden = false;
             }
             else if (e.originalTarget === node.id) {
                 e.target = node.id;
+                e.targetHandle = null;
                 e.hidden = false;
             }
 
@@ -589,6 +654,8 @@ const FlowChart = forwardRef((props, ref) => {
                 hidden: (srcNode.id === dstNode.id) || (srcNodeParent && dstNodeParent && (srcNodeParent === dstNodeParent)) ? true : false,
                 source: srcNodeParent ? srcNodeParent.id : srcNode.id,
                 target: dstNodeParent ? dstNodeParent.id : dstNode.id,
+                sourceHandle: "source-" + e.originalSource,
+                targetHandle: "target-" + e.originalTarget,
                 animated: true
             };
 
@@ -661,6 +728,7 @@ const FlowChart = forwardRef((props, ref) => {
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     onNodeClick={onNodeClick}
+                    onNodeContextMenu={onNodeContextMenu}
                     fitView
                 >
                     <Panel position="top-right">
@@ -688,6 +756,17 @@ const FlowChart = forwardRef((props, ref) => {
                     <Controls />
                 </ReactFlow>
             }
+
+            <Dialog open={openRepresentDialog}>
+                <DialogTitle>Set As Representative</DialogTitle>
+                <DialogContent>
+                    Are you sure to set Node {representNode?.data.label} as the Representative Node of this group?
+                </DialogContent>
+                <DialogActions>
+                    <Button variant="outlined" color="error" onClick={onCloseDialog}>Cancel</Button>
+                    <Button variant="outlined" color="primary" onClick={onConfirmRepresentativeNode}>Confirm</Button>
+                </DialogActions>
+            </Dialog>
         </div>
     )
 });

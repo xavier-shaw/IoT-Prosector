@@ -249,7 +249,7 @@ export default function Board(props) {
                             <h6>the final state diagram.</h6>
                         </>
                     }
-                    <Dialog open={openDialog} onClose={() => { setOpenDiaglog(false) }}>
+                    <Dialog open={openDialog}>
                         <DialogTitle>Collage process completed.</DialogTitle>
                         <DialogActions>
                             <Button className='mt-2' variant="outlined" color="success" onClick={endCollage} startIcon={<CheckIcon />}>Confirm</Button>

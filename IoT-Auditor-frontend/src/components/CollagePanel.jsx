@@ -69,7 +69,6 @@ const CollagePanel = forwardRef((props, ref) => {
         axios
             .get(window.BACKEND_ADDRESS + "/video/get/" + id)
             .then((resp) => {
-                console.log("video", resp.data);
                 setStateFunction(resp.data[0].video);
             })
     }

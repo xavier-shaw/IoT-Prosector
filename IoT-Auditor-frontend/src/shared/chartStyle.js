@@ -36,6 +36,9 @@ export const displayNodeStyle = {
     padding: "10px",
     borderRadius: "10px",
     backgroundColor: "#F7E2E1",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: groupZIndex
 }
 
