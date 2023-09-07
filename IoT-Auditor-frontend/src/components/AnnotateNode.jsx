@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { TextField } from '@mui/material';
+import zIndex from '@mui/material/styles/zIndex';
+import { stateZIndex } from '../shared/chartStyle';
 
 export default function AnnotateNode(props) {
   let { id, data } = props;
@@ -14,12 +16,12 @@ export default function AnnotateNode(props) {
   }
 
   return (
-    <div className='nodrag'>
+    <div className='nodrag' style={{ zIndex: stateZIndex }}>
       <Handle type="target" position={Position.Left} />
       {editable ?
-        <TextField size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} />
+        <TextField className="m-auto" size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} />
         :
-        <h5 style={{ fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{stateName}</h5>
+        <p className="m-auto" style={{ fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{stateName}</p>
       }
       <Handle type="source" position={Position.Right} />
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Handle, NodeResizeControl, Position } from 'reactflow';
 import { TextField } from '@mui/material';
+import { groupZIndex } from '../shared/chartStyle';
 
 export default function SemanticNode(props) {
     let { id, data } = props;
@@ -42,17 +43,17 @@ export default function SemanticNode(props) {
     };
 
     return (
-        <>
+        <div style={{ zIndex: groupZIndex}}>
             <NodeResizeControl controlStyle={controlStyle}>
                 <ResizeIcon />
             </NodeResizeControl>
             <Handle type="target" position={Position.Left} />
-            {editable ?
+            {/* {editable ?
                 <TextField value={nodeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
                 <h4 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{nodeName}</h4>
-            }
+            } */}
             <Handle type="source" position={Position.Right} />
-        </>
+        </div>
     );
 }

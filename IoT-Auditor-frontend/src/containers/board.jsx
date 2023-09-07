@@ -9,13 +9,12 @@ import { cloneDeep } from 'lodash';
 import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
-import { MarkerType } from "reactflow";
 import { Button, Grid, Typography, Dialog, DialogActions, DialogTitle, } from "@mui/material";
 import CheckIcon from '@mui/icons-material/Check';
 import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
 import CollagePanel from "../components/CollagePanel";
-import { childNodeoffsetY, nodeOffsetX, nodeOffsetY, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle } from "../shared/chartStyle";
+import { childNodeoffsetY, edgeZIndex, nodeOffsetX, nodeOffsetY, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, stateZIndex } from "../shared/chartStyle";
 
 export default function Board(props) {
     let params = useParams();
@@ -26,7 +25,7 @@ export default function Board(props) {
     const [chart, setChart] = useState({});
     const [instructions, setInstructions] = useState([]);
     const [prevNode, setPrevNode] = useState(null);
-    const [chartSelection, setChartSelection] = useState({ nodes: [], edges: [] });
+    const [chartSelection, setChartSelection] = useState(null);
     const [chainNum, setChainNum] = useState(0);
     const [status, setStatus] = useState("start");
     const [openDialog, setOpenDiaglog] = useState(false);
@@ -123,6 +122,10 @@ export default function Board(props) {
         }
     };
 
+    const previewFinalChart = () => {
+        nodeChartRef.current.previewChart();
+    };
+
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
         let newChart = { ...chart };
         let position;
@@ -146,7 +149,7 @@ export default function Board(props) {
             positionAbsolute: position,
             data: { label: state, status: status, action: action, prev: prevNode ? prevNode.id : null },
             style: stateNodeStyle,
-            zIndex: 3
+            zIndex: stateZIndex
         };
         newChart.nodes.push(newState);
         setPrevNode(newState);
@@ -159,6 +162,8 @@ export default function Board(props) {
             type: "transitionEdge",
             source: srcId,
             target: dstId,
+            originalSource: srcId,
+            originalTarget: dstId,
             markerEnd: {
                 type: MarkerType.ArrowClosed,
                 width: 30,
@@ -172,7 +177,7 @@ export default function Board(props) {
             data: {
                 label: action
             },
-            zIndex: 4
+            zIndex: edgeZIndex
         };
 
         return transition;
@@ -237,9 +242,11 @@ export default function Board(props) {
                     <h6>You are now at the {stages[step]} Stage.</h6>
                     {step === 1 &&
                         <>
-                            <h6>&nbsp;First </h6>
+                            <h6>&nbsp;You can </h6>
                             <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={startCollage}>Collage</Button>
-                            <h6>, then drag the states to debug.</h6>
+                            <h6>, interact, and .</h6>
+                            <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>Preview</Button>
+                            <h6>the final state diagram.</h6>
                         </>
                     }
                     <Dialog open={openDialog} onClose={() => { setOpenDiaglog(false) }}>
@@ -252,7 +259,7 @@ export default function Board(props) {
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={7} className="panel-div">
                         <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                            setChartSelection={setChartSelection} updateMatrix={updateMatrix} />
+                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} />
                     </Grid>
                     {(() => {
                         switch (step) {

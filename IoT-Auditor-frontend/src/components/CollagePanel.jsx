@@ -3,6 +3,7 @@ import * as d3 from "d3";
 import "./CollagePanel.css";
 import { Button, Grid, Skeleton } from "@mui/material";
 import axios from "axios";
+import { customColors, noneColor, siblingColor, stateColor } from "../shared/chartStyle";
 
 const CollagePanel = forwardRef((props, ref) => {
     let { board, chart, chartSelection, showHints, hideHints } = props;
@@ -24,7 +25,7 @@ const CollagePanel = forwardRef((props, ref) => {
     }));
 
     useEffect(() => {
-        if (chartSelection.type === "stateNode") {
+        if (chartSelection?.type === "stateNode") {
             if (selectedNode) {
                 hideHints(selectedNode, "all");
                 setHint("");
@@ -32,14 +33,13 @@ const CollagePanel = forwardRef((props, ref) => {
             let node_id = chartSelection.id;
             let prev_id = chartSelection.data.prev;
             let curNode = chart.nodes.find((e) => e.id === node_id);
-            console.log("selected", curNode);
             setSelectedNode(curNode);
             setVideoById(node_id, setSelectedNodeVideo);
             if (prev_id) {
                 let prevNode = chart.nodes.find((e) => e.id === prev_id);
                 setPrevNode(prevNode);
                 setVideoById(prev_id, setPrevNodeVideo);
-                let edge_id = chart.edges.find((e) => e.source === prev_id && e.target === node_id).id;
+                let edge_id = chart.edges.find((e) => e.originalSource === prev_id && e.originalTarget === node_id).id;
                 setVideoById(edge_id, setActionVideo);
             }
             else {
@@ -52,12 +52,24 @@ const CollagePanel = forwardRef((props, ref) => {
                 drawScatterplot(classificationData, chart.nodes, curNode);
             }
         }
+        else if (chartSelection === null || chartSelection.type === "semanticNode") {
+            if (selectedNode) {
+                hideHints(selectedNode, "all");
+                setHint("");
+            }
+            setSelectedNode(null);
+            
+            if (figure === "distribution") {
+                drawScatterplot(classificationData, chart.nodes, chartSelection);
+            }
+        }
     }, [chartSelection]);
 
     const setVideoById = (id, setStateFunction) => {
         axios
             .get(window.BACKEND_ADDRESS + "/video/get/" + id)
             .then((resp) => {
+                console.log("video", resp.data);
                 setStateFunction(resp.data[0].video);
             })
     }
@@ -75,7 +87,7 @@ const CollagePanel = forwardRef((props, ref) => {
                     states: resp.data.states,
                     dataPoints: resp.data.dataPoints
                 }
-                
+
                 let node = nodes.find((n) => n.id === selectedNode?.id);
                 setSelectedNode(node);
 
@@ -89,6 +101,7 @@ const CollagePanel = forwardRef((props, ref) => {
             })
     };
 
+    // ============================= Confusion Matrix ================================
     const drawConfusionMatrix = (classificationData) => {
         let accuracyOffset = 30;
         let matrixOffset = 10;
@@ -113,15 +126,6 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("font-size", 20)
             .style("text-anchor", "middle")
             .text("Average Accuracy: " + classificationData.accuracy);
-
-        // svg.append("text")
-        //     .attr("x", 15)
-        //     .attr("y", offsetY + legendHeight / 2)
-        //     .attr("font-size", 20)
-        //     .style("text-anchor", "middle")
-        //     .text("True Labels")
-        //     .style("writing-mode", "tb")
-        //     .style("glyph-orientation-vertical", 90)
 
         let cellSize = legendHeight / classificationData.matrix.length;
         let colorScale = d3.scaleLinear()
@@ -233,39 +237,59 @@ const CollagePanel = forwardRef((props, ref) => {
             .call(xAxis);
     };
 
+    // ============================= Scatterplot ================================
     const drawScatterplot = (classificationData, nodes, selectedNode) => {
         let data = classificationData.dataPoints;
-        let margin = 10;
+        let margin = 5;
+        let cubeSize = 15;
+        let seqSize = 30;
+        let graphOffsetX = 20;
+        let graphOffsetY = 30;
 
         document.getElementById("graph-panel").innerHTML = "";
         let svg = d3.select("#graph-panel").append("svg")
             .attr("width", graphWidth)
             .attr("height", graphHeight);
 
+        const color = d3.scaleOrdinal()
+            .domain(nodes.filter((n) => n.type === "stateNode").map(d => d.id))
+            .range(customColors);
+        
+        let stateNodes = nodes.filter((n) => n.type === "stateNode");
+        let legend = svg.append("g")
+            .attr("transform", `translate(${margin}, ${margin})`)
+        legend
+            .selectAll("rect")
+            .data(stateNodes)
+            .join("rect")
+            .attr("fill", d => color(d.id))
+            .attr("width", cubeSize)
+            .attr("height", cubeSize)
+            .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize)}, 0)`)
+        legend
+            .selectAll("text")
+            .data(stateNodes)
+            .join("text")
+            .text(d => d.data.label.slice(0, 3))
+            .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize) + cubeSize}, 13)`)
+
         let xScaler = d3.scaleLinear()
             .domain([d3.min(data, d => d.x), d3.max(data, d => d.x)])
-            .range([margin, graphWidth - margin]);
+            .range([graphOffsetX, graphWidth - graphOffsetX]);
 
         let yScaler = d3.scaleLinear()
             .domain([d3.min(data, d => d.y), d3.max(data, d => d.y)])
-            .range([margin, graphHeight - margin]);
+            .range([graphOffsetY, graphHeight - graphOffsetY]);
 
         svg.append("g")
-            .attr("transform", `translate(0,${graphHeight / 2 - margin})`)
+            .attr("transform", `translate(0,${graphHeight / 2 - graphOffsetY})`)
             .call(d3.axisBottom(xScaler))
 
         svg.append("g")
-            .attr("transform", `translate(${graphWidth / 2 - margin},0)`)
+            .attr("transform", `translate(${graphWidth / 2 - graphOffsetX},0)`)
             .call(d3.axisLeft(yScaler))
 
-        const customColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
-            '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8',
-            '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000'];
-        const color = d3.scaleOrdinal()
-            .domain(data.map(d => d.label))
-            .range(customColors);
-
-        if (selectedNode) {
+        if (selectedNode?.type === "stateNode") {
             svg.append("g")
                 .attr("fill", "none")
                 .selectAll("circle")
@@ -273,19 +297,19 @@ const CollagePanel = forwardRef((props, ref) => {
                 .join("circle")
                 .attr("fill", d => {
                     if (d.label === selectedNode.id) {
-                        return "blue";
+                        return color(d.label);
                     }
                     else if (selectedNode.parentNode) {
                         let parent = nodes.find((n) => n.id === selectedNode.parentNode);
                         if (parent.data.children.includes(d.label)) {
-                            return "skyblue";
+                            return color(d.label);
                         }
                         else {
-                            return "lightgrey";
+                            return noneColor;
                         }
                     }
                     else {
-                        return "lightgrey";
+                        return noneColor;
                     }
                 })
                 .attr("transform", d => `translate(${xScaler(d.x)},${yScaler(d.y)})`)
@@ -361,14 +385,14 @@ const CollagePanel = forwardRef((props, ref) => {
                 </Button>
             </div>
             <div className="state-info-div">
-                {prevNode && prevNodeVideo &&
+                {prevNode && prevNodeVideo && selectedNode &&
                     <div>
                         <h5>Previous State</h5>
                         <h6>{prevNode.data.label}</h6>
                         <video src={prevNodeVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
-                {prevNode && actionVideo &&
+                {prevNode && actionVideo && selectedNode &&
                     <div>
                         <h5>Action</h5>
                         <h6>{selectedNode.data.action}</h6>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import ReactFlow, { Background, Controls, useEdgesState, useNodesState, Panel, useReactFlow, ReactFlowProvider, addEdge, getIncomers, getOutgoers, getConnectedEdges } from 'reactflow';
-import Dagre from 'dagre';
+import ReactFlow, { Background, Controls, useStore, useEdgesState, useNodesState, Panel, useReactFlow, ReactFlowProvider, addEdge, getIncomers, getOutgoers, getConnectedEdges } from 'reactflow';
+import * as d3 from "d3";
 import 'reactflow/dist/style.css';
 import { cloneDeep } from 'lodash';
 import ExploreNode from "./ExploreNode";
@@ -11,9 +11,51 @@ import SemanticNode from "./SemanticNode";
 import { MarkerType } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
 import "./NodeChart.css";
-import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight } from "../shared/chartStyle";
+import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors } from "../shared/chartStyle";
 import axios from "axios";
 import CombinedNode from "./CombinedNode";
+import { SmartBezierEdge } from '@tisoap/react-flow-smart-edge'
+import ELK from 'elkjs/lib/elk.bundled.js';
+
+const elk = new ELK();
+
+const useLayoutedElements = () => {
+    const { getNodes, setNodes, getEdges, fitView } = useReactFlow();
+    const defaultOptions = {
+        'elk.algorithm': 'layered',
+        'elk.layered.spacing.nodeNodeBetweenLayers': 100,
+        'elk.spacing.nodeNode': 80,
+    };
+
+    const getLayoutedElements = useCallback((options) => {
+        const layoutOptions = { ...defaultOptions, ...options };
+        let nodes = getNodes();
+        let filter_nodes = nodes.filter((n) => !n.parentNode);
+
+        const graph = {
+            id: 'root',
+            layoutOptions: layoutOptions,
+            children: filter_nodes,
+            edges: getEdges(),
+        };
+
+        elk.layout(graph).then(({ children }) => {
+            nodes = nodes.map((n) => {
+                let node = children.find((e) => e.id === n.id);
+                if (node) {
+                    n.position = { x: node.x, y: node.y };
+                }
+
+                return n;
+            });
+
+            console.log("new nodes", nodes);
+            setNodes(nodes);
+        });
+    }, []);
+
+    return { getLayoutedElements };
+};
 
 const NodeChart = forwardRef((props, ref) => {
     return (
@@ -24,10 +66,14 @@ const NodeChart = forwardRef((props, ref) => {
 })
 
 const FlowChart = forwardRef((props, ref) => {
-    let { board, chart, setChart, step, setChartSelection, updateMatrix, setHints } = props;
+    let { board, chart, setChart, step, chartSelection, setChartSelection, updateMatrix } = props;
+    const { getLayoutedElements } = useLayoutedElements();
+    const { fitView } = useReactFlow();
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [displayNodes, setDisplayNodes, onDisplayNodesChange] = useNodesState([]);
+    const [displayEdges, setDisplayEdges, onDisplayEdgesChange] = useEdgesState([]);
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
     const dragRef = useRef(null);
     const [onDragging, setOnDragging] = useState(false);
@@ -35,10 +81,13 @@ const FlowChart = forwardRef((props, ref) => {
     const [autoLayoutMode, setAutoLayoutMode] = useState(true);
     const [semanticHints, setSemanticHints] = useState({});
     const [dataHints, setDataHints] = useState({});
+    const [preview, setPreview] = useState(false);
     const nodeTypes_explore = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
     const nodeTypes_annotate = useMemo(() => ({ stateNode: ExploreNode, semanticNode: SemanticNode, combinedNode: CombinedNode }), []);
+    const nodeTypes_verify = useMemo(() => ({ stateNode: ExploreNode, semanticNode: ExploreNode }), []);
     const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
-    const edgeTypes_annotate = useMemo(() => ({ transitionEdge: AnnotateEdge }), []);
+    const edgeTypes_annotate = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
+    const edgeTypes_verify = useMemo(() => ({ transitionEdge: SmartBezierEdge }), []);
 
     useEffect(() => {
         if (chart.hasOwnProperty("nodes")) {
@@ -51,6 +100,9 @@ const FlowChart = forwardRef((props, ref) => {
         if (step === 1) {
             updateMatrix(nodes);
         }
+        else if (step === 2) {
+            generateFinalChart();
+        }
     }, [step]);
 
     useImperativeHandle(ref, () => ({
@@ -59,8 +111,22 @@ const FlowChart = forwardRef((props, ref) => {
         showSemanticHints,
         showDataHints,
         hideSemanticHints,
-        hideDataHints
+        hideDataHints,
+        previewChart
     }));
+
+    const onLayout = (newNodes, newEdges) => {
+        getLayoutedElements({
+            'elk.algorithm': 'org.eclipse.elk.force',
+            // 'elk.algorithm': 'org.eclipse.elk.radial"
+            // 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT'
+            // 'elk.algorithm': 'layered', 'elk.direction': 'DOWN'
+        });
+
+        window.requestAnimationFrame(() => {
+            fitView();
+        });
+    };
 
     const collageStates = async () => {
         await axios
@@ -69,7 +135,6 @@ const FlowChart = forwardRef((props, ref) => {
                 nodes: nodes
             })
             .then((resp) => {
-                console.log(resp)
                 let action_group_count = resp.data.action_group_count;
                 let action_collage_dict = resp.data.action_collage_dict;
                 let semantic_group_cnt = resp.data.semantic_group_cnt;
@@ -80,28 +145,38 @@ const FlowChart = forwardRef((props, ref) => {
                 let newNodes = [...nodes];
                 let newEdges = [...edges];
 
+                newNodes = newNodes.map((n) => {
+                    n.style = stateNodeStyle;
+                    return n;
+                })
+
                 for (let index = 0; index < action_group_count; index++) {
                     let semanticNode = createNewNode({ x: semanticNodeMarginX + semanticNodeOffsetX * index, y: semanticNodeMarginY }, "semanticNode");
                     semanticNode.data.label += " " + index;
                     for (const [nid, cid] of Object.entries(action_collage_dict)) {
                         if (cid === index) {
                             let node = newNodes.find((n) => n.id === nid);
-                            semanticNode.data.children = [...semanticNode.data.children, node.id];
+                            semanticNode.data.children.push(node.id);
                             node.parentNode = semanticNode.id;
                             node.position = { x: childNodeoffsetX, y: childNodeMarginY + (semanticNode.data.children.length - 1) * childNodeoffsetY };
                             node.positionAbsolute = {
                                 x: semanticNode.positionAbsolute.x + node.position.x,
                                 y: semanticNode.positionAbsolute.y + node.position.y
                             };
-                            if (semanticNode.data.children.length > 1) {
-                                semanticNode.style = { ...semanticNode.style, height: parseInt(semanticNode.style.height.slice(0, -2)) + childNodeoffsetY + "px" };
-                            }
                         }
                     };
-                    newEdges = hiddenInsideEdges(newEdges, semanticNode.data.children);
-                    newNodes.push(semanticNode);
+                    semanticNode.style = { ...semanticNode.style, height: changeHeight(newNodes, semanticNode) };
+                    semanticNode.height = parseInt(semanticNode.style.height.slice(0, -2));
+                    if (semanticNode.data.children.length == 1) {
+                        let child = newNodes.find((n) => n.id === semanticNode.data.children[0]);
+                        child.parentNode = null;
+                    }
+                    else {
+                        newNodes.push(semanticNode);
+                    }
                 };
 
+                newEdges = hiddenChildEdges(newNodes, newEdges);
                 let semanticHints = {};
                 for (let index = 0; index < semantic_group_cnt; index++) {
                     semanticHints[index] = [];
@@ -122,57 +197,27 @@ const FlowChart = forwardRef((props, ref) => {
                     }
                 }
 
-                layout(newNodes);
-                updateMatrix(nodes);
-                setChart((prevChart) => ({ ...prevChart, nodes: nodes }));
+                layout(newNodes, newEdges, false);
+                updateMatrix(newNodes);
+                setChart((prevChart) => ({ ...prevChart, nodes: newNodes, edges: newEdges }));
                 setEdges(newEdges);
                 setSemanticHints(semanticHints);
                 setDataHints(dataHints);
+                setChartSelection(null);
             })
-    };
-
-    const changeWidth = (parentNode) => {
-        if (parentNode.type === "semanticNode") {
-            return semanticNodeStyle.width;
-        }
-        else if (parentNode.type === "combinedNode") {
-            let childCnt = parentNode.data.children.length;
-            if (childCnt <= 1) {
-                return combinedNodeStyle.width;
-            }
-            else {
-                if (childCnt < layoutRowNum) {
-                    return (childSemanticNodeMarginX + childCnt * childSemanticNodeOffsetX - offWidth) + "px";
-                }
-                else {
-                    return (childSemanticNodeMarginX + layoutRowNum * childSemanticNodeOffsetX - offWidth) + "px";
-                }
-            }
-        }
     };
 
     const changeHeight = (nodes, parentNode) => {
         let maxHeight = 0;
 
-        if (parentNode.data.children.length <= 1) {
-            if (parentNode.type === "semanticNode") {
-                return semanticNodeStyle.height;
+        for (const child_id of parentNode.data.children) {
+            let child = nodes.find((n) => n.id === child_id);
+            let childBottom = child.position.y + parseInt(child.style.height.slice(0, -2));
+            if (childBottom > maxHeight) {
+                maxHeight = childBottom;
             }
-        }
-
-        if (parentNode.type === "semanticNode") {
-            maxHeight = childNodeMarginY + parentNode.data.children.length * childNodeoffsetY - offHeight;
-        }
-        else if (parentNode.type === "combinedNode") {
-            for (const child_id of parentNode.data.children) {
-                let child = nodes.find((n) => n.id === child_id);
-                let childBottom = child.position.y + parseInt(child.style.height.slice(0, -2));
-                if (childBottom > maxHeight) {
-                    maxHeight = childBottom;
-                }
-            };
-            maxHeight += childNodeMarginY;
-        }
+        };
+        maxHeight += childNodeMarginY;
 
         return maxHeight + "px";
     }
@@ -180,24 +225,53 @@ const FlowChart = forwardRef((props, ref) => {
     const updateAnnotation = () => {
         const newChart = reactFlowInstance.toObject();
         setChart(newChart);
-        console.log("update annotation")
+        console.log("update annotation");
         return newChart;
     };
 
     const onNodeClick = (evt, node) => {
-        setChartSelection(node);
+        const color = d3.scaleOrdinal()
+            .domain(nodes.filter((n) => n.type === "stateNode").map(d => d.id))
+            .range(customColors);
+
+        let newNodes = [...nodes];
+
+        if (chartSelection?.type === "stateNode") {
+            newNodes = newNodes.map((n) => {
+                if (n.id === chartSelection.id) {
+                    n.style.backgroundColor = "#F7E2E1";
+                }
+
+                return n;
+            })
+        }
+
+        if (node.type === "stateNode" && node.id !== chartSelection?.id) {
+            newNodes = newNodes.map((n) => {
+                if (n.id === node.id) {
+                    n.style.backgroundColor = color(n.id);
+                }
+
+                return n;
+            });
+            setChartSelection(node);
+        }
+        else {
+            setChartSelection(null);
+        }
+
+        setNodes(newNodes);
     };
 
     const changeLayoutMode = () => {
         setAutoLayoutMode((prev) => (!prev));
     };
 
-    const layout = (nodes) => {
-        let newNodes = [...nodes];
+    const layout = (newNodes, newEdges, preview) => {
         let nextRowY = 0;
         let index = 0;
         let layoutNodes = [];
-        newNodes.map((node) => {
+        newNodes = newNodes.map((node) => {
             if (!node.parentNode) {
                 if (index % layoutRowNum === 0 && index !== 0) {
                     for (let i = index - 1; i >= index - layoutRowNum; i--) {
@@ -209,7 +283,7 @@ const FlowChart = forwardRef((props, ref) => {
                 }
                 node.position = { x: nodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY };
                 node.positionAbsolute = { x: nodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY };
-                if (node.data.children?.length > 0) {
+                if (node.data.children?.length > 0 && !preview) {
                     for (const childId of node.data.children) {
                         let child = newNodes.find((n) => n.id === childId);
                         child.positionAbsolute = {
@@ -225,58 +299,29 @@ const FlowChart = forwardRef((props, ref) => {
             return node;
         })
 
-        setNodes(newNodes);
+        if (preview) {
+            setDisplayNodes(newNodes);
+            setDisplayEdges(newEdges);
+        }
+        else {
+            setNodes(newNodes);
+            setEdges(newEdges);
+        }
     };
 
-    const onCollageLayout = (nodes) => {
-        let newNodes = [...nodes];
-        let prevNode = null;
-        newNodes.map((node, idx) => {
-            if (autoLayoutMode) {
-                if (!node.parentNode) {
-                    if (prevNode) {
-                        node.position = { x: prevNode.position.x + parseInt(prevNode.style.width.slice(0, -2)) + combinedNodeOffsetX, y: prevNode.position.y }
-                        node.positionAbsolute = { x: prevNode.position.x + parseInt(prevNode.style.width.slice(0, -2)) + combinedNodeOffsetX, y: prevNode.position.y }
-                    }
-                    prevNode = node;
-                }
+    const insideLayout = (nodes) => {
+        nodes = nodes.map((n) => {
+            if (!n.parentNode) {
+                return n;
             }
-
-            if (node.type === "combinedNode") {
-                let children = node.data.children;
-                let nextRowY = 0;
-                let rowCnt = 0;
-                for (let index = 0; index < children.length; index++) {
-                    const childId = children[index];
-                    let child = newNodes.find((n) => n.id === childId);
-                    rowCnt = Math.floor(index / layoutRowNum);
-                    if (index % layoutRowNum === 0 && index !== 0) {
-                        for (let i = index - 1; i >= index - layoutRowNum; i--) {
-                            let prevChildNodeId = children[i];
-                            let prevChildNode = newNodes.find((n) => n.id === prevChildNodeId);
-                            let prevChildBottom = prevChildNode.position.y + parseInt(prevChildNode.style.height.slice(0, -2))
-                            if (prevChildBottom > nextRowY) {
-                                nextRowY = prevChildBottom;
-                            };
-                        }
-                    }
-
-                    if (rowCnt === 0) {
-                        child.position = { x: childSemanticNodeMarginX + childSemanticNodeOffsetX * (index % layoutRowNum), y: nextRowY + childSemanticNodeMarginY }
-                    }
-                    else {
-                        child.position = { x: childSemanticNodeMarginX + childSemanticNodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY }
-                    }
-                    child.positionAbsolute = { x: node.positionAbsolute.x + child.position.x, y: node.positionAbsolute.y + child.position.y }
-                };
-
-                node.style = { ...node.style, width: changeWidth(node, true), height: changeHeight(newNodes, node) };
-            };
-
-            return node;
+            else {
+                let parent = nodes.find((nd) => nd.id === n.parentNode);
+                n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
+                return n;
+            }
         });
 
-        setNodes(newNodes);
+        return nodes;
     };
 
     const showSemanticHints = (node) => {
@@ -332,6 +377,32 @@ const FlowChart = forwardRef((props, ref) => {
         setNodes(newNodes);
     };
 
+    const previewChart = () => {
+        if (!preview) {
+            generateFinalChart();
+            setPreview(true);
+        }
+        else {
+            setPreview(false);
+        }
+    };
+
+    const generateFinalChart = () => {
+        let newNodes = [];
+        let newEdges = [...edges];
+
+        for (const node of nodes) {
+            if (!node.parentNode) {
+                let newNode = { ...node, style: displayNodeStyle };
+                newNodes.push(newNode);
+            }
+        };
+
+        layout(newNodes, newEdges, true);
+        setDisplayNodes(newNodes);
+        setDisplayEdges(newEdges);
+    };
+
     const createNewNode = (position, type) => {
         let zIndex;
         let nodeStyle;
@@ -339,20 +410,17 @@ const FlowChart = forwardRef((props, ref) => {
 
         switch (type) {
             case "semanticNode":
-                zIndex = 1;
+                zIndex = groupZIndex;
                 nodeData.label = "State Group"
                 nodeStyle = semanticNodeStyle;
-                break;
-            case "combinedNode":
-                zIndex = 0;
-                nodeData.label = "Combined Node"
-                nodeStyle = combinedNodeStyle;
                 break;
             default:
                 break;
         }
 
         const newNode = {
+            width: parseInt(nodeStyle.width.slice(0, -2)),
+            height: parseInt(nodeStyle.height.slice(0, -2)),
             id: uuidv4(),
             type: type,
             position: position,
@@ -436,96 +504,70 @@ const FlowChart = forwardRef((props, ref) => {
         let needUpdate = false;
 
         if (target) {
-            newNodes.map((n) => {
+            newNodes = newNodes.map((n) => {
                 if (n.id === node.id) {
                     if (n.parentNode && n.parentNode !== target.id) {
                         needUpdate = true;
-                        removeFromParentNode(newNodes, n);
+                        newEdges = revealOwnEdges(newEdges, node);
+                        let parent = newNodes.find((e) => e.id === n.parentNode);
+                        parent.data.children = parent.data.children.filter((e) => e !== n.id);
+                        parent.style = { ...parent.style, height: changeHeight(newNodes, parent) };
+                        n.parentNode = null;
                     };
 
                     n.parentNode = target.id;
                     let parent = newNodes.find((e) => e.id === target.id);
                     if (!parent.data.children.includes(n.id)) {
                         needUpdate = true;
-                        newEdges = revealOwnEdges(newEdges, node.id);
-                        parent.data.children = [...parent.data.children, n.id];
-                        if (parent.type === "semanticNode") {
-                            n.position = { x: childNodeoffsetX, y: childNodeMarginY + (parent.data.children.length - 1) * childNodeoffsetY };
-                        }
-                        else if (parent.type === "combinedNode") {
-                            n.position = {
-                                x: childSemanticNodeMarginX + (parent.data.children.length - 1) * childSemanticNodeOffsetX,
-                                y: childSemanticNodeOffsetY
-                            }
-                        }
-                        parent.style = { ...parent.style, width: changeWidth(parent), height: changeHeight(newNodes, parent) };
-                        if (parent.parentNode) {
-                            let grandParent = newNodes.find((n) => n.id === parent.parentNode);
-                            grandParent.style = { ...grandParent.style, width: changeWidth(grandParent), height: changeHeight(newNodes, grandParent) };
-                        }
-                        newEdges = hiddenInsideEdges(newEdges, parent.data.children);
+                        parent.data.children.push(n.id);
+                        n.position = { x: childNodeoffsetX, y: childNodeMarginY + (parent.data.children.length - 1) * childNodeoffsetY };
+                        parent.style = { ...parent.style, height: changeHeight(newNodes, parent) };
                     }
                     else {
-                        if (parent.type === "semanticNode") {
-                            n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
-                        }
-                        else if (parent.type === "combinedNode") {
-                            n.position = { x: childSemanticNodeMarginX + parent.data.children.indexOf(n.id) * childSemanticNodeOffsetX, y: childSemanticNodeOffsetY };
-                        }
+                        n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
                     }
                 }
                 return n;
             })
         }
         else {
-            newNodes.map((n) => {
+            newNodes = newNodes.map((n) => {
                 if (n.id === node.id) {
                     if (n.parentNode) {
                         needUpdate = true;
-                        removeFromParentNode(newNodes, n);
+                        newEdges = revealOwnEdges(newEdges, node);
+                        let parent = newNodes.find((e) => e.id === n.parentNode);
+                        parent.data.children = parent.data.children.filter((e) => e !== n.id);
+                        parent.style.height = changeHeight(newNodes, parent);
+                        n.parentNode = null;
                     }
-                    n.position = { x: node.positionAbsolute.x, y: node.positionAbsolute.y };
-                    newEdges = revealOwnEdges(newEdges, node.id);
+                    n.position = node.positionAbsolute;
                 }
                 return n;
             })
         }
 
+        newNodes = insideLayout(newNodes);
+        newEdges = hiddenChildEdges(newNodes, newEdges);
         if (needUpdate) {
-            updateMatrix(nodes);
-            setChart((prevChart) => ({...prevChart, nodes: nodes}));
+            updateMatrix(newNodes);
+            setChart((prevChart) => ({ ...prevChart, nodes: newNodes, edges: newEdges }));
         }
-
+        setNodes(newNodes);
         setEdges(newEdges);
         setTarget(null);
         setOnDragging(false);
         dragRef.current = null;
     };
 
-    const removeFromParentNode = (newNodes, n) => {
-        let parent = newNodes.find((e) => e.id === n.parentNode);
-        parent.data.children = parent.data.children.filter((e) => e !== n.id);
-        parent.style = { ...parent.style, width: changeWidth(parent), height: changeHeight(newNodes, parent) };
-        if (parent.parentNode) {
-            let grandParent = newNodes.find((n) => n.id === parent.parentNode);
-            grandParent.style = { ...grandParent.style, width: changeWidth(grandParent), height: changeHeight(newNodes, grandParent) };
-        }
-        for (const child of parent.data.children) {
-            let childNode = newNodes.find((e) => e.id === child);
-            if (parent.type === "semanticNode") {
-                childNode.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(child) * childNodeoffsetY };
+    const revealOwnEdges = (edges, node) => {
+        edges = edges.map((e) => {
+            if (e.originalSource === node.id) {
+                e.source = node.id;
+                e.hidden = false;
             }
-            else if (parent.type === "combinedNode") {
-                childNode.position = { x: childSemanticNodeMarginX + parent.data.children.indexOf(child) * childSemanticNodeOffsetX, y: childSemanticNodeOffsetY };
-            }
-        }
-
-        n.parentNode = null;
-    };
-
-    const revealOwnEdges = (edges, idx) => {
-        edges.map((e) => {
-            if (e.source === idx || e.target === idx) {
+            else if (e.originalTarget === node.id) {
+                e.target = node.id;
                 e.hidden = false;
             }
 
@@ -535,11 +577,20 @@ const FlowChart = forwardRef((props, ref) => {
         return edges;
     };
 
-    const hiddenInsideEdges = (edges, children) => {
-        edges.map((e) => {
-            if (children.includes(e.source) && children.includes(e.target)) {
-                e.hidden = true;
-            }
+    const hiddenChildEdges = (nodes, edges) => {
+        edges = edges.map((e) => {
+            let srcNode = nodes.find((n) => n.id === e.source);
+            let dstNode = nodes.find((n) => n.id === e.target);
+            let srcNodeParent = nodes.find((n) => n.id === srcNode.parentNode);
+            let dstNodeParent = nodes.find((n) => n.id === dstNode.parentNode);
+
+            e = {
+                ...e,
+                hidden: (srcNode.id === dstNode.id) || (srcNodeParent && dstNodeParent && (srcNodeParent === dstNodeParent)) ? true : false,
+                source: srcNodeParent ? srcNodeParent.id : srcNode.id,
+                target: dstNodeParent ? dstNodeParent.id : dstNode.id,
+                animated: true
+            };
 
             return e;
         });
@@ -555,9 +606,6 @@ const FlowChart = forwardRef((props, ref) => {
                 } else {
                     let color;
                     switch (node.type) {
-                        case "combinedNode":
-                            color = combinedNodeStyle.backgroundColor;
-                            break;
                         case "semanticNode":
                             color = semanticNodeStyle.backgroundColor;
                             break;
@@ -572,32 +620,6 @@ const FlowChart = forwardRef((props, ref) => {
             })
         );
     }, [target]);
-
-    const onConnect = useCallback((params) => {
-        let prevIdx = params.source.split("_")[1];
-        let idx = params.target.split("_")[1];
-        let newEdge = {
-            id: "edge_" + prevIdx + "-" + idx,
-            type: "transitionEdge",
-            source: params.source,
-            target: params.target,
-            markerEnd: {
-                type: MarkerType.ArrowClosed,
-                width: 30,
-                height: 30,
-                color: '#FF0072',
-            },
-            style: {
-                strokeWidth: 2,
-                stroke: '#000000',
-            },
-            data: {
-                label: "action (" + prevIdx + "->" + idx + ")"
-            },
-            zIndex: 4
-        }
-        setEdges((eds) => addEdge(newEdge, eds))
-    }, []);
 
     const onDragStart = (event, nodeType) => {
         event.dataTransfer.setData('application/reactflow', nodeType);
@@ -618,13 +640,13 @@ const FlowChart = forwardRef((props, ref) => {
                     fitView
                 >
                     <Panel position="top-right">
-                        <button onClick={() => { layout(nodes) }}>Layout</button>
+                        <button onClick={() => layout(nodes, edges, false)}>Layout</button>
                     </Panel>
                     <Background />
                     <Controls />
                 </ReactFlow>
             }
-            {step === 1 &&
+            {step === 1 && !preview &&
                 <ReactFlow
                     nodeTypes={nodeTypes_annotate}
                     edgeTypes={edgeTypes_annotate}
@@ -639,10 +661,10 @@ const FlowChart = forwardRef((props, ref) => {
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     onNodeClick={onNodeClick}
-                    onConnect={onConnect}
                     fitView
                 >
                     <Panel position="top-right">
+                        <button onClick={() => onLayout(nodes, edges)}>Layout</button>
                         <div className='mode-node-div' onDragStart={(event) => onDragStart(event, 'semanticNode')} draggable>
                             State Group
                         </div>
@@ -651,12 +673,14 @@ const FlowChart = forwardRef((props, ref) => {
                     <Controls />
                 </ReactFlow>
             }
-            {step === 2 &&
+            {(step === 2 || preview === true) &&
                 <ReactFlow
-                    nodeTypes={nodeTypes_explore}
-                    edgeTypes={edgeTypes_explore}
-                    nodes={nodes}
-                    edges={edges}
+                    nodeTypes={nodeTypes_verify}
+                    edgeTypes={edgeTypes_verify}
+                    nodes={displayNodes}
+                    edges={displayEdges}
+                    onNodesChange={onDisplayNodesChange}
+                    onEdgesChange={onDisplayEdgesChange}
                     onInit={setReactFlowInstance}
                     fitView
                 >
