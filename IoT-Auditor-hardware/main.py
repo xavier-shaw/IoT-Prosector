@@ -58,7 +58,7 @@ app.add_middleware(
 ser = None
 quit = False
 listening = False
-data_thread = None
+power_data_thread = None
 
 max_currents = []
 avg_currents = []
@@ -76,6 +76,8 @@ data_points = {}
 SEMANTIC_CLUSTERING = 0
 DATA_CLUSTERING = 1
 
+q = multiprocessing.Queue()
+qids = []
 
 def read_from_arduino():
     print("Start reading from Arduino...")
@@ -96,8 +98,8 @@ def read_from_arduino():
             times.append(time.time() - start_time)
 
 
-data_thread = threading.Thread(target=read_from_arduino, daemon=True)
-data_thread.start()
+power_data_thread = threading.Thread(target=read_from_arduino, daemon=True)
+power_data_thread.start()
 
 
 @app.on_event("startup")
@@ -118,9 +120,9 @@ async def startup_db_client():
 
 @app.on_event("shutdown")
 def shutdown_db_client():
-    global data_thread, ser, quit
+    global power_data_thread, ser, quit
     quit = True
-    data_thread.join()
+    power_data_thread.join()
     ser.close()
     app.client.close()
 
@@ -166,18 +168,39 @@ async def remove_all_boards():
 
 
 @app.get("/startSensing")
-async def start_sensing():
+async def start_sensing(idx: str):
     global listening, start_time
     listening = True
     start_time = time.time()
-    return {"message": "Start Recording!"}
+    read_from_sm200(idx)
+
+    return {"message": "Start Sensing!"}
+
+def read_from_sm200(idx):
+    global q, qids
+    p = multiprocessing.Process(
+            target=emanation_data.emanation_data, args=(q,))
+    qids.append(idx)
+    p.start()
+    p.join()
+
+@app.get("/waitForDataProcessing")
+async def waitForProcessing():
+    global q, qids
+    for qid in qids:
+        data = q.get()
+        print(qid + ": ")
+        print(data) 
+    qids = []
+
+    return {"message": "Finish Processing!"}
 
 
 @app.get("/stopSensing")
 async def stop_sensing(idx: str, device: str):
     global listening, max_currents, avg_currents, min_currents, times
     listening = False
-    return {"message": "Stop Recording!"}
+    return {"message": "Stop Sensing!"}
 
 
 @app.get("/storeData")

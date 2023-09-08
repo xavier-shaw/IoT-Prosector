@@ -3,8 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import time
+from scipy.signal import find_peaks
+from scipy.signal import medfilt
 
-def getEmanations(filename, start_time):
+def getEmanations(filename):
     num_samples = 32768
     num_bands = 3 # for 6GHz spectrum
     num_sweeps = 1
@@ -19,10 +21,10 @@ def getEmanations(filename, start_time):
             fHi = float(freq_range[1].split(mag_orders[i])[0])*10**(3*(i+1))
 
     F_START = fLow
-    F_S = 200e6
+    F_S = 250e6
     F_HOP = 100e6
-    N_HOPS = 2
-    N_SWEEPS = 1
+    N_HOPS = 1
+    N_SWEEPS = 500
 
     data1 = np.fromfile(open(filename), dtype=scipy.complex64)
 
@@ -38,22 +40,41 @@ def getEmanations(filename, start_time):
     cut_stop = np.floor(n_samples_per_hop*0.75)-1
     cut_size = cut_stop - cut_start+1
 
-    powers = []
-    timestamps = []
+    power_result = np.zeros((n_sweeps, 5))
     for i in range(1, n_sweeps+1):
         for j in range(1, n_hops+1):
-            curr_start = int((j-1)*cut_size*2)
-            curr_stop = int(j*cut_size*2)
-            curr_data = data1[curr_start:curr_stop]
-            sub_min_data = data1[curr_start:curr_stop] - np.mean(data1[curr_start:curr_stop])
-            f, t, Sxx = signal.spectrogram(curr_data, nperseg=1024, noverlap=1024//2,mode='psd', return_onesided=False)
-            pwelpsd = np.mean(Sxx.T, axis=0)
-            power = 10*np.log10(pwelpsd)[np.argsort(f)]
-            with open('GH_' + str(j*200) + 'CF_index.pkl', 'rb') as index_f:
-                power_ix = np.load(index_f)
-            powers.append(power[power_ix])
-            timestamps.append(time.time() - start_time)
-    return np.concatenate(powers), timestamps
+            n_start = int((i-1)*n_hops*n_samples_per_hop + (j-1)*n_samples_per_hop)+1
+            n_stop = int((i-1)*n_hops*n_samples_per_hop + j*n_samples_per_hop)
+            
+            curr_data = data1[n_start:n_stop]
+
+            #f, t, Sxx = signal.spectrogram(curr_data, nperseg=1024, noverlap=1024//2,mode='psd', return_onesided=False)
+            #pwelpsd = np.mean(Sxx.T, axis=0)
+            #power = 10*np.log10(pwelpsd)[np.argsort(f)]
+
+            power = 20*np.log10(np.fft.fftshift(np.abs(np.fft.fft(curr_data))))
+
+            power_good = power[int(cut_start):int(cut_stop)]
+            # using move median to smooth the noise floor
+            move_power = medfilt(power_good, 301)
+            # find the peaks that are psd of the emanations
+            final_power = power_good - move_power
+            peaks, _ = find_peaks(final_power, height=1.4)
+            
+            power_ix = np.array([np.mean(final_power[peaks]), np.median(final_power[peaks]), np.std(final_power[peaks]), np.var(final_power[peaks]), np.average(final_power[peaks])])
+            # power_result = np.vstack((power_result, power_ix))
+            power_result[i - 1] = power_ix
+            # curr_start = int((j-1)*cut_size)+1
+            # curr_stop = int(j*cut_size)
+
+            #print(power_ix)
+
+
+            
+            #powers.append(final_power[power_ix])
+    print(power_result)
+    return power_result        
+    #return np.concatenate(powers)
 
 #         peaks, _ = signal.find_peaks(pwelpsd, prominence=0.0000001)
 #         fig, ax = plt.subplots()
