@@ -15,6 +15,7 @@ import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
 import CollagePanel from "../components/CollagePanel";
 import { childNodeoffsetY, edgeZIndex, nodeOffsetX, nodeOffsetY, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, stateZIndex } from "../shared/chartStyle";
+import { MarkerType } from "reactflow";
 
 export default function Board(props) {
     let params = useParams();

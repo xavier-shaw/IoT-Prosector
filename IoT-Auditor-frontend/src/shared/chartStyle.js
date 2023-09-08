@@ -1,7 +1,7 @@
-export const groupZIndex = 1;
-export const stateZIndex = 1002;
-export const edgeZIndex = -2001;
-export const labelZIndex = -1000;
+export const groupZIndex = 2002;
+export const stateZIndex = 3003;
+export const edgeZIndex = 1;
+export const labelZIndex = 1001;
 
 export const stateNodeStyle = {
     width: "120px",
@@ -107,3 +107,6 @@ export const customColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f5823
 //     "#001219", "#005F73", "#0A9396", "#94D2BD", "#E9D8A6", "#EE9B00", "#CA6702", "#BB3E03", "#AE2012", "#9B2226",
 //     "#582F0E", "#936639", "#A4AC86", "#656D4A", "#414833", "#023e8a", "#0096c7", "#ef476f", "#7b2cbf", "#4d908e"
 // ]
+
+export const displayHandleMargin = 5;
+export const displayHandleOffset = 40;

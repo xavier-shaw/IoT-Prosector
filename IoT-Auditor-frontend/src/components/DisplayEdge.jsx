@@ -1,8 +1,8 @@
 import { Chip, TextField } from '@mui/material';
 import React, { useState } from 'react';
-import { getBezierPath, EdgeLabelRenderer, BaseEdge, getSmoothStepPath } from 'reactflow';
+import { getBezierPath, EdgeLabelRenderer, BaseEdge, getSmoothStepPath, MarkerType } from 'reactflow';
 import { getEdgeStyle } from '../shared/chartStyle';
-import { MarkerType } from "reactflow";
+
 const markerStyle = {
     type: MarkerType.ArrowClosed,
     width: 30,
@@ -29,10 +29,10 @@ export default function DisplayEdge(props) {
         targetY,
         targetPosition
     });
-
+    
     return (
         <>
-            <BaseEdge id={id} path={edgePath} markerEnd={markerStyle} style={style} />
+            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
             <EdgeLabelRenderer>
                 <div
                     id={id + "_label"}
