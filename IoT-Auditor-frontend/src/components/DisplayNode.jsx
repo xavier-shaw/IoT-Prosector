@@ -17,7 +17,7 @@ export default function DisplayNode(props) {
     return (
         <div style={{ zIndex: groupZIndex }}>
             {data.children && data.children?.map((child, idx) => (
-                <Handle key={idx} type="target" id={"target-" + child} position={Position.Left}
+                <Handle key={idx} type="target" id={"target-" + idx} position={Position.Left}
                     style={{ top: displayHandleMargin + idx * displayHandleOffset }} />
             ))}
             {!data.children && <Handle type="target" position={Position.Left} />}
@@ -27,7 +27,7 @@ export default function DisplayNode(props) {
                 <h5 className='m-auto' style={{ fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{nodeName? nodeName: data.representative}</h5>
             }
             {data.children && data.children?.map((child, idx) => (
-                    <Handle key={idx} type="source" id={"source-" + child} position={Position.Right} 
+                    <Handle key={idx} type="source" id={"source-" + idx} position={Position.Right} 
                     style={{ top: displayHandleMargin + idx * displayHandleOffset }} />
                 )
             )}

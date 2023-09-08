@@ -12,7 +12,7 @@ import { MarkerType } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
 import "./NodeChart.css";
 import 'reactflow/dist/style.css';
-import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors } from "../shared/chartStyle";
+import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors, stateZIndex } from "../shared/chartStyle";
 import axios from "axios";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import DisplayNode from "./DisplayNode";
@@ -104,10 +104,11 @@ const FlowChart = forwardRef((props, ref) => {
                 let newNodes = [...nodes];
                 let newEdges = [...edges];
 
-                newNodes = newNodes.map((n) => {
-                    n.style = stateNodeStyle;
-                    return n;
-                })
+                // newNodes = newNodes.map((n) => {
+                //     // n.style = stateNodeStyle;
+                //     n.zIndex = stateZIndex;
+                //     return n;
+                // })
 
                 for (let index = 0; index < action_group_count; index++) {
                     let semanticNode = createNewNode({ x: semanticNodeMarginX + semanticNodeOffsetX * index, y: semanticNodeMarginY }, "semanticNode");
@@ -242,7 +243,7 @@ const FlowChart = forwardRef((props, ref) => {
                     }
                 }
                 node.position = { x: nodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY };
-                node.positionAbsolute = { x: nodeOffsetX * (index % layoutRowNum), y: nextRowY + nodeOffsetY };
+                node.positionAbsolute = node.position;
                 if (node.data.children?.length > 0 && !preview) {
                     for (const childId of node.data.children) {
                         let child = newNodes.find((n) => n.id === childId);
@@ -270,7 +271,7 @@ const FlowChart = forwardRef((props, ref) => {
             else {
                 let parent = nodes.find((nd) => nd.id === n.parentNode);
                 n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
-                n.positionAbsolute = { x: parent.position.x + n.position.x, y: parent.position.y + n.position.y };
+                n.positionAbsolute = { x: parent.positionAbsolute.x + n.position.x, y: parent.positionAbsolute.y + n.position.y };
                 return n;
             }
         });
@@ -383,7 +384,7 @@ const FlowChart = forwardRef((props, ref) => {
             newEdges.push(value);
         }
 
-        [newNodes, newEdges] = layout(newNodes, newEdges, true);
+        // [newNodes, newEdges] = layout(newNodes, newEdges, true);
         setDisplayNodes(newNodes);
         setDisplayEdges(newEdges);
     };
@@ -457,7 +458,7 @@ const FlowChart = forwardRef((props, ref) => {
         // calculate the center point of the node from position and dimensions
         const centerX = node.positionAbsolute.x + node.width / 2;
         const centerY = node.positionAbsolute.y + node.height / 2;
-
+        console.log(centerX + ", " + centerY)
         let nodes_sort = nodes.sort((a, b) => b.zIndex - a.zIndex);
 
         // find a node where the center point is inside
@@ -527,6 +528,7 @@ const FlowChart = forwardRef((props, ref) => {
                         n.parentNode = null;
                     }
                     n.position = node.positionAbsolute;
+                    n.positionAbsolute = node.positionAbsolute;
                 }
                 return n;
             })
@@ -558,7 +560,13 @@ const FlowChart = forwardRef((props, ref) => {
         let newNodes = [...nodes];
         let parent = newNodes.find((n) => n.data.children?.includes(representNode.id));
         parent.data.representative = representNode.data.label;
+        parent.data.children = parent.data.children.filter((c) => c !== representNode.id);
+        parent.data.children.unshift(representNode.id);
+        
+        newNodes = insideLayout(newNodes);
+        let newEdges = hiddenChildEdges(newNodes, edges);
         setNodes(newNodes);
+        setEdges(newEdges);
         onCloseDialog();
     };
 
@@ -598,8 +606,8 @@ const FlowChart = forwardRef((props, ref) => {
                 hidden: (srcNode.id === dstNode.id) || (srcNodeParent && dstNodeParent && (srcNodeParent === dstNodeParent)) ? true : false,
                 source: srcNodeParent ? srcNodeParent.id : srcNode.id,
                 target: dstNodeParent ? dstNodeParent.id : dstNode.id,
-                sourceHandle: "source-" + e.originalSource,
-                targetHandle: "target-" + e.originalTarget,
+                sourceHandle: "source-" + (srcNodeParent? srcNodeParent.data.children.indexOf(e.originalSource): srcNode.data.children?.indexOf(e.originalSource)),
+                targetHandle: "target-" + (dstNodeParent? dstNodeParent.data.children.indexOf(e.originalTarget): dstNode.data.children?.indexOf(e.originalTarget)),
             };
 
             return e;

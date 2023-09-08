@@ -47,17 +47,18 @@ export default function SemanticNode(props) {
             <NodeResizeControl controlStyle={controlStyle}>
                 <ResizeIcon />
             </NodeResizeControl>
-            {data.children.map((child, idx) => (
-                <Handle key={idx} type="target" id={"target-" + child} position={Position.Left}
+            {data.children.map((child, idx) => { 
+                return (
+                <Handle key={idx} type="target" id={"target-" + idx} position={Position.Left}
                     style={{ top: childNodeMarginY + idx * childNodeoffsetY + 37 }} />
-            ))}
+            )})}
             {/* {editable ?
                 <TextField value={nodeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} className='nodrag'/>
                 :
                 <h4 style={{fontWeight: 'bold'}} onClick={() => { setEditable(true) }}>{nodeName}</h4>
             } */}
             {data.children.map((child, idx) => (
-                    <Handle key={idx} type="source" id={"source-" + child} position={Position.Right} 
+                    <Handle key={idx} type="source" id={"source-" + idx} position={Position.Right} 
                     style={{ top: childNodeMarginY + idx * childNodeoffsetY + 37 }} />
                 )
             )}
