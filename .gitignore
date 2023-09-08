@@ -1,2 +1,3 @@
 node_modules
-IoT-Auditor-hardware/em_data/em.32cf
+IoT-Auditor-hardware/em_data
+IoT-Auditor-hardware/__pycache__
