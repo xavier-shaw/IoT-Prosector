@@ -63,7 +63,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
         if (recording !== "") {
             setTimeout(() => {
                 endRecording();
-            }, 5000);   
+            }, 5000);
         }
     }, [recording])
 
@@ -76,7 +76,8 @@ const InteractionRecorder = forwardRef((props, ref) => {
     const startRecording = async (type) => {
         // start record the video
         setRecording(type);
-        setNewIdx(uuidv4());
+        let newIdx = uuidv4();
+        setNewIdx(newIdx);
         const mediaStream = webcamRef.current.stream;
         mediaRecorderRef.current = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
         mediaRecorderRef.current.addEventListener(
@@ -85,7 +86,13 @@ const InteractionRecorder = forwardRef((props, ref) => {
         );
         mediaRecorderRef.current.start();
         // then tell hardware to collect data
-        await axios.get(window.HARDWARE_ADDRESS + "/startSensing")
+        if (type === "state") {
+            await axios.get(window.HARDWARE_ADDRESS + "/startSensing", {
+                params: {
+                    idx: newIdx
+                }
+            })
+        }
     };
 
     const endRecording = () => {
@@ -129,17 +136,15 @@ const InteractionRecorder = forwardRef((props, ref) => {
                     });
             }
 
-            axios
-                .get(window.HARDWARE_ADDRESS + "/storeData", {
-                    params: {
-                        idx: newIdx,
-                        device: board.title,
-                    }
-                })
-
             if (recording === "state") {
                 setState("");
                 setStatus("choose action");
+                axios
+                    .get(window.HARDWARE_ADDRESS + "/storeData", {
+                        params: {
+                            idx: newIdx
+                        }
+                    })
             }
             else {
                 setStatus("state");

@@ -9,7 +9,7 @@ import { cloneDeep } from 'lodash';
 import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
-import { Button, Grid, Typography, Dialog, DialogActions, DialogTitle, } from "@mui/material";
+import { Button, Grid, Typography, Dialog, DialogActions, DialogTitle, DialogContent, } from "@mui/material";
 import CheckIcon from '@mui/icons-material/Check';
 import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
@@ -30,7 +30,8 @@ export default function Board(props) {
     const [chainNum, setChainNum] = useState(0);
     const [status, setStatus] = useState("start");
     const [openDialog, setOpenDiaglog] = useState(false);
-
+    const [waitForProcessing, setWaitForProcessing] = useState(false);
+    const [finishProcess, setFinishProcess] = useState(false);
     const nodeChartRef = useRef(null);
     const collagePanelRef = useRef(null);
     const interactionRecorderRef = useRef(null);
@@ -56,12 +57,28 @@ export default function Board(props) {
     }, [chart])
 
     const handleClickNext = () => {
-        setStep((prevStep) => (prevStep + 1));
+        if (step === 0) {
+            setWaitForProcessing(true);
+            axios.get(window.HARDWARE_ADDRESS + "/waitForDataProcessing")
+                .then((resp) => {
+                    console.log(resp);
+                    setFinishProcess(true);
+                })
+        }
+        else {
+            setStep((prevStep) => (prevStep + 1));
+        }
     };
 
     const handleClickBack = () => {
         setStep((prevStep) => (prevStep - 1));
-    }
+    };
+
+    const toNextStage = () => {
+        setWaitForProcessing(false);
+        setFinishProcess(false);
+        setStep((prev) => (prev + 1));
+    };
 
     const handleTitleFocusOut = (titleText) => {
         console.log("Update board title:", titleText);
@@ -184,60 +201,12 @@ export default function Board(props) {
         return transition;
     };
 
-    // const deletePrevHightlight = (prevStateIdx, curStateIdx) => {
-    //     let boardChart = board.chart;
-    //     boardChart.nodes = boardChart.nodes.map((node) => {
-    //         if (node.id === "node_" + curStateIdx) {
-    //             node.style = { ...node.style, backgroundColor: "#788bff" };
-    //             let prevTransitionLabel = document.getElementById("edge_" + prevStateIdx + "-" + curStateIdx + "_label");
-    //             prevTransitionLabel.style.backgroundColor = "#f4a261";
-    //         };
-
-    //         return node;
-    //     });
-
-    //     setBoard((prevBoard) => ({ ...prevBoard, chart: boardChart }));
-    // };
-
-    // const addNewHighlight = (curStateIdx, nextStateIdx) => {
-    //     let boardChart = board.chart;
-    //     boardChart.nodes = boardChart.nodes.map((node) => {
-    //         if (node.id === "node_" + nextStateIdx) {
-    //             node.style = { ...node.style, backgroundColor: "skyblue" };
-    //             let nextTransitionEdge = document.getElementById("edge_" + curStateIdx + "-" + nextStateIdx + "_label");
-    //             nextTransitionEdge.style.backgroundColor = "skyblue";
-    //         };
-
-    //         return node;
-    //     });
-
-    //     setBoard((prevBoard) => ({ ...prevBoard, chart: boardChart }));
-    // };
-
-    // const annotationSensing = () => {
-    //     axios
-    //         .get(window.BACKEND_ADDRESS + "/predict/" + board.title)
-    //         .then((resp) => {
-    //             let curState = resp.data;
-    //             console.log("now iot state", curState);
-    //             if (curState.length > 0) {
-    //                 // Hint for User => current stage and current transition
-    //                 let curStateIdx = curState.length >= 2 ? curState[curState.length - 2].state : "-1";
-    //                 let nextStateIdx = curState[curState.length - 1].state;
-    //                 addNewHighlight(curStateIdx, nextStateIdx);
-    //                 setTimeout(() => {
-    //                     deletePrevHightlight(curStateIdx, nextStateIdx);
-    //                 }, 900);
-    //             }
-    //         })
-    // };
-
     return (
         <div className="board-div">
             <Helmet>
                 <title>{board.title}</title>
             </Helmet>
-            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext}/>
+            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} />
             <div className="main-board-div">
                 <div className="top-side-div">
                     <h6>You are now at the {stages[step]} Stage.</h6>
@@ -297,6 +266,20 @@ export default function Board(props) {
                     })()}
                 </Grid>
             </div>
+
+            <Dialog open={waitForProcessing}>
+                <DialogTitle>Please wait until the data analysis is done.</DialogTitle>
+                <DialogContent>
+                    {!finishProcess && <div>
+                        <h5>It takes up to 30 seconds to finish.</h5>
+                        <LinearProgress />
+                    </div>}
+                    {finishProcess && <h5>The data analysis is finished.</h5>}
+                </DialogContent>
+                <DialogActions>
+                    <Button variant="contained" color="primary" disabled={finishProcess} onClick={toNextStage}>To Collage Stage</Button>
+                </DialogActions>
+            </Dialog>
         </div>
     )
 }

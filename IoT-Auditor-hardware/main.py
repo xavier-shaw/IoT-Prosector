@@ -78,6 +78,8 @@ DATA_CLUSTERING = 1
 
 q = multiprocessing.Queue()
 qids = []
+processes = []
+
 
 def read_from_arduino():
     print("Start reading from Arduino...")
@@ -174,24 +176,34 @@ async def start_sensing(idx: str):
     start_time = time.time()
     read_from_sm200(idx)
 
-    return {"message": "Start Sensing!"}
+    return {"message": "Start Sensing for " + idx + "!"}
+
 
 def read_from_sm200(idx):
-    global q, qids
+    global q, qids, processes
     p = multiprocessing.Process(
-            target=emanation_data.emanation_data, args=(q,))
+        target=emanation_data.emanation_data, args=(q, idx))
     qids.append(idx)
+    processes.append(p)
     p.start()
-    p.join()
+
 
 @app.get("/waitForDataProcessing")
 async def waitForProcessing():
-    global q, qids
+    global q, qids, processes
+    for process in processes:
+        process.join()
+
     for qid in qids:
-        data = q.get()
-        print(qid + ": ")
-        print(data) 
+        emanation_data = q.get()
+        data = {
+            "idx": qid + "-emanation",
+            "emanation": emanation_data.tolist()
+        }
+        create_data(jsonable_encoder(data))
+
     qids = []
+    processes = []
 
     return {"message": "Finish Processing!"}
 
@@ -204,8 +216,8 @@ async def stop_sensing(idx: str, device: str):
 
 
 @app.get("/storeData")
-async def store(idx: str, device: str):
-    store_power_data(device, idx, max_currents,
+async def store(idx: str):
+    store_power_data(idx, max_currents,
                      avg_currents, min_currents, times)
     clear_data()
     return {"message": "Store data"}
@@ -261,7 +273,7 @@ async def collage(data: DataModel = Body(...)):
 async def classfication(data: DataModel = Body(...)):
     global classifier, labels, data_points
     states, ids, X, Y, Y_true = build_dataset(data.device, data.nodes)
-    
+
     # classification model
     clf, cms, acc = classify(states, X, Y)
     classifier = clf
@@ -272,7 +284,7 @@ async def classfication(data: DataModel = Body(...)):
     if len(data_points) > 0:
         data_points_info = data_points
     else:
-        # tsne  
+        # tsne
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
         tsne = TSNE(n_components=2, perplexity=40, init="pca")
@@ -283,7 +295,7 @@ async def classfication(data: DataModel = Body(...)):
                 "y": float(X_scaled[i][1]),
                 "label": Y_true[i]
             })
-        
+
     resp = {
         "accuracy": round(acc, 3),
         "confusionMatrix": cms,
@@ -319,10 +331,9 @@ def create_data(data):
     print("store data into database")
 
 
-def store_power_data(device, idx, max_currents, avg_currents, min_currents, times):
+def store_power_data(idx, max_currents, avg_currents, min_currents, times):
     data = {
-        "device": device,
-        "idx": idx,
+        "idx": idx + "-power",
         "max_currents": max_currents,
         "avg_currents": avg_currents,
         "min_currents": min_currents,
@@ -343,7 +354,7 @@ def action_match(nodes):
         else:
             actions.append(action)
             action_node_dict[action] = [node]
-        
+
         action_collage_dict[node["id"]] = actions.index(action)
 
     return actions, action_node_dict, action_collage_dict
