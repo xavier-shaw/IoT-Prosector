@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import time
+import os
 from scipy.signal import find_peaks
 from scipy.signal import medfilt
 
@@ -24,8 +25,10 @@ def getEmanations(filename):
     F_S = 250e6
     F_HOP = 100e6
     N_HOPS = 1
-    N_SWEEPS = 500
+    N_SWEEPS = 50
 
+    while not os.path.exists(filename):
+        continue
     data1 = np.fromfile(filename, dtype=scipy.complex64)
     
     fstart = F_START

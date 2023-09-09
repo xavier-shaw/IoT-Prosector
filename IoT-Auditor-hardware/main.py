@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import asyncio
+from concurrent.futures.process import ProcessPoolExecutor
 from typing import List
 from dotenv import dotenv_values
 from pymongo import MongoClient
@@ -35,6 +36,8 @@ import json
 import threading
 import serial
 from paramiko import SSHClient
+from contextlib import asynccontextmanager
+
 
 config = dotenv_values(".env")
 username = quote_plus(config["NAME"])
@@ -44,15 +47,6 @@ uri = 'mongodb+srv://' + username + ':' + password + \
     '@' + cluster + '/?retryWrites=true&w=majority'
 pineapple_token = "eyJVc2VyIjoicm9vdCIsIkV4cGlyeSI6IjIwMjgtMDgtMjJUMDI6Mzc6NTUuMjk4NzgzMzAzWiIsIlNlcnZlcklkIjoiYTYyMTM3MzE3NTUyNDRlZSJ9.sbCLEXl3vWayXfd4zM2zgTthQnzEztZvWxNi_nejdvg="
 
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=['*'],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ====================================== GLOBAL VARIABLES ==================================================
 ser = None
@@ -77,14 +71,22 @@ SEMANTIC_CLUSTERING = 0
 DATA_CLUSTERING = 1
 
 q = multiprocessing.Queue()
-qids = []
+state_infos = []
 processes = []
 
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def read_from_arduino():
     print("Start reading from Arduino...")
     global ser
-    ser = serial.Serial('/dev/tty.usbmodem21101', 9600, timeout=1)
+    ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
     global avg_currents, max_currents, min_currents, times, listening, quit
     while not quit:
         line = ser.readline()
@@ -106,6 +108,7 @@ power_data_thread.start()
 
 @app.on_event("startup")
 async def startup_db_client():
+    app.state.executor = ProcessPoolExecutor()
     app.client = MongoClient(uri, tlsCAFile=certifi.where())
     app.database = app.client[config["DB_NAME"]]
     print("Connected to the MongoDB database!")
@@ -126,6 +129,7 @@ def shutdown_db_client():
     quit = True
     power_data_thread.join()
     ser.close()
+    app.state.executor.shutdown()
     app.client.close()
 
 # ========================================= Routes =========================================================
@@ -170,54 +174,74 @@ async def remove_all_boards():
 
 
 @app.get("/startSensing")
-async def start_sensing(idx: str):
+async def start_sensing(device: str, idx: str, background_tasks: BackgroundTasks):
     global listening, start_time
     listening = True
     start_time = time.time()
-    read_from_sm200(idx)
+    background_tasks.add_task(read_from_sm200, device, idx)
 
     return {"message": "Start Sensing for " + idx + "!"}
 
 
-def read_from_sm200(idx):
-    global q, qids, processes
-    p = multiprocessing.Process(
-        target=emanation_data.emanation_data, args=(q, idx))
-    qids.append(idx)
-    processes.append(p)
-    p.start()
+async def read_from_sm200(device, idx):
+    global q, state_infos, processes
+    os.environ['IDX']= idx
+    # p = multiprocessing.Process(
+    #     target=emanation_data.emanation_data, args=(q, idx))
+    # os.environ['IDX']= idx
+    # state_infos.append((device, idx))
+    # processes.append(p)
+    # p.start()
+    processes.append(idx)
+    emanation_result = await run_in_process(emanation_data.emanation_data, idx)
+    state_infos.append(idx)
+    data = {
+        "device": device,
+        "idx": idx + "-emanation",
+        "emanation": emanation_result.tolist()
+    }
+    create_data(jsonable_encoder(data), "emanation")
+
+
+async def run_in_process(fn, *args):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(app.state.executor, fn, *args)  # wait and return result
 
 
 @app.get("/waitForDataProcessing")
 async def waitForProcessing():
-    global q, qids, processes
-    for process in processes:
-        process.join()
+    global q, state_infos, processes
+    # for process in processes:
+    #     process.join()
 
-    for qid in qids:
-        emanation_data = q.get()
-        data = {
-            "idx": qid + "-emanation",
-            "emanation": emanation_data.tolist()
-        }
-        create_data(jsonable_encoder(data))
+    # for device, idx in state_infos:
+    #     emanation_data = q.get()
+    #     data = {
+    #         "device": device,
+    #         "idx": idx + "-emanation",
+    #         "emanation": emanation_data.tolist()
+    #     }
+    #     create_data(jsonable_encoder(data), "emanation")
+    print("states: ", len(state_infos))
+    while len(state_infos) != len(processes):
+        time.sleep(1) 
 
-    qids = []
+    state_infos = []
     processes = []
 
     return {"message": "Finish Processing!"}
 
 
 @app.get("/stopSensing")
-async def stop_sensing(idx: str, device: str):
+async def stop_sensing():
     global listening, max_currents, avg_currents, min_currents, times
     listening = False
     return {"message": "Stop Sensing!"}
 
 
 @app.get("/storeData")
-async def store(idx: str):
-    store_power_data(idx, max_currents,
+async def store(device, idx: str):
+    store_power_data(device, idx, max_currents,
                      avg_currents, min_currents, times)
     clear_data()
     return {"message": "Store data"}
@@ -326,20 +350,21 @@ def clear_data():
     times = []
 
 
-def create_data(data):
+def create_data(data, type):
     app.database["iotdatas"].insert_one(data)
-    print("store data into database")
+    print("store " + type + " data into database")
 
 
-def store_power_data(idx, max_currents, avg_currents, min_currents, times):
+def store_power_data(device, idx, max_currents, avg_currents, min_currents, times):
     data = {
+        "device": device,
         "idx": idx + "-power",
         "max_currents": max_currents,
         "avg_currents": avg_currents,
         "min_currents": min_currents,
         "times": times
     }
-    create_data(jsonable_encoder(data))
+    create_data(jsonable_encoder(data), "power")
 
 
 def action_match(nodes):
@@ -429,7 +454,7 @@ def get_features(avg_currents, max_currents, min_currents):
 
 
 def get_data(device, state):
-    data = app.database["iotdatas"].find_one({"device": device, "idx": state})
+    data = app.database["iotdatas"].find_one({"device": device, "idx": state + "-power"})
     avg_currents = data["avg_currents"]
     max_currents = data["max_currents"]
     min_currents = data["min_currents"]
@@ -497,13 +522,13 @@ def cluster_states(X, Y, type):
         silhouette_avg = silhouette_score(scaled_X, kmeans.labels_)
         sil.append(silhouette_avg)
 
-    plt.plot(range(type + 2, num_of_states + 1), sil)
-    plt.title('Silhouette Score Method')
-    plt.xlabel('Number of clusters')
-    plt.ylabel('Silhouette Score')
+    # plt.plot(range(type + 2, num_of_states + 1), sil)
+    # plt.title('Silhouette Score Method')
+    # plt.xlabel('Number of clusters')
+    # plt.ylabel('Silhouette Score')
 
-    plt.savefig('silhouette_score.png', bbox_inches='tight')
-    plt.close()
+    # plt.savefig('silhouette_score.png', bbox_inches='tight')
+    # plt.close()
 
     best_cluster_number = 1
     if len(sil) > 0:
@@ -556,3 +581,4 @@ def predict_state(features):
         pred.append(state)
 
     print(pred)
+

@@ -9,7 +9,7 @@ import { cloneDeep } from 'lodash';
 import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
 import TimelineChart from "../components/TimelineChart";
-import { Button, Grid, Typography, Dialog, DialogActions, DialogTitle, DialogContent, } from "@mui/material";
+import { Button, Grid, Typography, Dialog, DialogActions, DialogTitle, DialogContent, LinearProgress, } from "@mui/material";
 import CheckIcon from '@mui/icons-material/Check';
 import InstructionTable from "../components/InstructionTable";
 import InteractionRecorder from "../components/InteractionRecorder";
@@ -271,13 +271,13 @@ export default function Board(props) {
                 <DialogTitle>Please wait until the data analysis is done.</DialogTitle>
                 <DialogContent>
                     {!finishProcess && <div>
-                        <h5>It takes up to 30 seconds to finish.</h5>
+                        <p>It takes up to 30 seconds to finish.</p>
                         <LinearProgress />
                     </div>}
                     {finishProcess && <h5>The data analysis is finished.</h5>}
                 </DialogContent>
                 <DialogActions>
-                    <Button variant="contained" color="primary" disabled={finishProcess} onClick={toNextStage}>To Collage Stage</Button>
+                    <Button variant="contained" color="primary" disabled={!finishProcess} onClick={toNextStage}>To Collage Stage</Button>
                 </DialogActions>
             </Dialog>
         </div>

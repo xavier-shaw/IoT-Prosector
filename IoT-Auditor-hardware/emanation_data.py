@@ -4,12 +4,12 @@ import subprocess
 import FFTpeaks
 import os 
 
-def emanation_data(q, idx):
+def emanation_data(idx):
     debug = False
     if debug:
         return 1
     else:
-        absolute_path = os.path.dirname(__file__)
+        absolute_path = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/"
         relative_path_1 = "getEmanations_2.sh"
         relative_path_2 = "em_data/em_" + idx + ".32cf"
         full_path_1 = os.path.join(absolute_path, relative_path_1)
@@ -17,5 +17,5 @@ def emanation_data(q, idx):
         subprocess.call(full_path_1, shell=True)
         ## rayray's emanation detection codes translated from matlab
         fft_peaks =  FFTpeaks.getEmanations(full_path_2)
-        q.put(fft_peaks)
-        return(fft_peaks)
+        # q.put(fft_peaks)
+        return fft_peaks

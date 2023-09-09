@@ -46,8 +46,13 @@ const InteractionRecorder = forwardRef((props, ref) => {
         navigator.mediaDevices.enumerateDevices()
             .then(devices => {
                 const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                let deviceId;
+                for (const [idx, device] of Object.entries(videoDevices)) {
+                    if (device.label === "1080P Pro Stream (046d:0894)") {
+                        deviceId = device.id;
+                    }
+                }
                 if (videoDevices.length > 0) {
-                    let deviceId = "4D39E3577986FFC049FD5845F0A019AEFE2361E2";
                     setCamera(deviceId);
                     console.log("Camera devices: ", videoDevices);
                 }
@@ -89,6 +94,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
         if (type === "state") {
             await axios.get(window.HARDWARE_ADDRESS + "/startSensing", {
                 params: {
+                    device: board.title,
                     idx: newIdx
                 }
             })
@@ -97,12 +103,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
     const endRecording = () => {
         axios
-            .get(window.HARDWARE_ADDRESS + "/stopSensing", {
-                params: {
-                    idx: newIdx,
-                    device: board.title,
-                }
-            })
+            .get(window.HARDWARE_ADDRESS + "/stopSensing")
             .then((resp) => {
                 mediaRecorderRef.current.stop();
                 if (recording === "state") {
@@ -142,6 +143,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
                 axios
                     .get(window.HARDWARE_ADDRESS + "/storeData", {
                         params: {
+                            device: board.title,
                             idx: newIdx
                         }
                     })

@@ -349,6 +349,7 @@ const FlowChart = forwardRef((props, ref) => {
         for (const node of nodes) {
             if (!node.parentNode) {
                 let label = "";
+                console.log(node)
                 if (node.data.representative) {
                     label = node.data.representative;
                 }
