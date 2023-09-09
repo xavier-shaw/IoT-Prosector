@@ -42,8 +42,6 @@ def getEmanations(filename):
 
     power_result = np.zeros((n_sweeps, 5))
     for i in range(1, n_sweeps+1):
-        if i == 2:
-             print(power_result[0])
         for j in range(1, n_hops+1):
             n_start = int((i-1)*n_hops*n_samples_per_hop + (j-1)*n_samples_per_hop)+1
             n_stop = int((i-1)*n_hops*n_samples_per_hop + j*n_samples_per_hop)
