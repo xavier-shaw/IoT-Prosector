@@ -65,8 +65,8 @@ export const getEdgeStyle = (labelX, labelY) => {
     }
 }
 
-export const nodeOffsetX = 400;
-export const nodeOffsetY = 100;
+export const nodeOffsetX = 300;
+export const nodeOffsetY = 150;
 
 export const childNodeoffsetX = 35;
 export const childNodeoffsetY = 100;

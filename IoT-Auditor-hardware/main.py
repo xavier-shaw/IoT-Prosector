@@ -299,6 +299,9 @@ async def collage(data: DataModel = Body(...)):
 @app.post("/classification")
 async def classfication(data: DataModel = Body(...)):
     global classifier, labels, data_points
+
+
+
     states, ids, X, Y, Y_true = build_dataset(data.device, data.nodes)
 
     # classification model
@@ -343,6 +346,33 @@ async def verify():
 
     return {"message": "predict state"}
 
+
+@app.get("/emanationTest")
+async def emanation_test():
+    device = "test emanation"
+    nodes = app.database["boards"].find_one({"title": device})["chart"]["nodes"]
+    collected_nodes = []
+    labels = []
+    X = []
+    Y = []
+    Y_true = []
+
+    order = ["semanticNode", "stateNode"]
+    sorted_nodes = sorted(nodes, key=lambda x: order.index(x["type"]))
+
+    # labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
+    #     device, sorted_nodes, sorted_nodes, labels, collected_nodes, X, Y, Y_true, independent=True)
+
+    power_datas = []
+    emanation_datas = []
+    states_info = []
+    groups_info = []
+    labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
+        device, sorted_nodes, sorted_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=True)
+    
+    data_processing(state_infos, power_datas, emanation_datas)
+
+    return {"message": "test emanation process"}
 # ========================================= Functions =========================================================
 
 
@@ -389,7 +419,7 @@ def action_match(nodes):
     return actions, action_node_dict, action_collage_dict
 
 
-def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, Y, Y_true, independent=False):
+def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=False):
     for node in target_nodes:
         if node["id"] not in collected_nodes:
             collected_nodes.append(node["id"])
@@ -400,25 +430,35 @@ def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, 
                 children = node["data"]["children"]
                 if len(children) > 0:
                     children_nodes = [n for n in nodes if n["id"] in children]
-                    labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
-                        device, nodes, children_nodes, labels, collected_nodes, X, Y, Y_true)
+                    # labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
+                    #     device, nodes, children_nodes, labels, collected_nodes, X, Y, Y_true)
+                    labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
+                        device, nodes, children_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info)
             else:
                 avg_currents, max_currents, min_currents, times = get_power_data(
                     device, node["id"])
-                power_features = get_power_features(
-                    avg_currents, max_currents, min_currents)
+                emanation_data = get_emanation_data(device, node["id"])
+                power_datas.append(avg_currents)
+                emanation_datas.append(emanation_data)
+                states_info.append(node["id"])
+                if node["parentNode"]:
+                    groups_info.append(node["parentNode"])
+                else:
+                    groups_info.append(node["id"])
+                # power_features = get_power_features(
+                #     avg_currents, max_currents, min_currents)
                 # emanation_data = get_emanation_data(device, node["id"])
                 # emanation_features = get_emanation_features(
                 #     emanation_data, len(power_features))
                 # features = np.hstack((power_features, emanation_features))
+                # features = power_features
+                # for feature in features:
+                #     X.append(feature)
+                #     Y.append(len(labels) - 1)
+                #     Y_true.append(node["id"])
 
-                features = power_features
-                for feature in features:
-                    X.append(feature)
-                    Y.append(len(labels) - 1)
-                    Y_true.append(node["id"])
-
-    return labels, collected_nodes, X, Y, Y_true
+    # return labels, collected_nodes, X, Y, Y_true
+    return labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info
 
 
 def build_dataset(device, nodes):
@@ -431,8 +471,18 @@ def build_dataset(device, nodes):
     order = ["semanticNode", "stateNode"]
     sorted_nodes = sorted(nodes, key=lambda x: order.index(x["type"]))
 
-    labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
-        device, sorted_nodes, sorted_nodes, labels, collected_nodes, X, Y, Y_true, independent=True)
+    # labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
+    #     device, sorted_nodes, sorted_nodes, labels, collected_nodes, X, Y, Y_true, independent=True)
+
+    power_datas = []
+    emanation_datas = []
+    states_info = []
+    groups_info = []
+    labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
+        device, sorted_nodes, sorted_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=True)
+
+    # process data to get X, Y, Y_true_state, Y_true_group
+    #
 
     X = np.array(X)
     Y = np.array(Y)
@@ -623,3 +673,54 @@ def predict_state(features):
 
 
 # ===========================================================================================================
+def data_processing(states, raw_power_data, raw_emanation_data):
+    max_len = 0  # largest length of emanation vector
+    powers = [] # list with (number of states x  10), 10 means each state will have 10 data features 
+    for state_idx in range(len(states)):
+        # state power data: average values of current => size: (1 * 200)
+        # state emanation data: data from the .32cf file => size: (500, k)
+        state_power_data = raw_power_data[state_idx]
+        state_emanation = raw_emanation_data[state_idx]
+        i=0
+        num = 20
+        power = []# one iot state will have 10 examples which is averaged over 20 power data points
+        while(i<len(state_power_data)):
+           power.append(np.mean(state_power_data[i:i+num]))
+           i=i+num
+        powers.append(power)
+        # get the largest length of the emantion vector
+        
+        for i in range(state_emanation.shape[0]):
+            state_emanation_example = state_emanation[i,:]
+            max_len = max(max_len, len(state_emanation_example))
+    # converting powers to be array
+    powers_fea = np.array(powers)
+
+    # interpolating the emanations 
+    emanations_fea = np.zeros((len(states)*10, max_len)) # 10 indicates that one iot state has 10 examples
+    interp_index = 0
+    for state_idx in range(len(states)): # interpolating emanation vectors
+        state_emanation = raw_emanation_data[state_idx]
+        emanation_interp = np.zeros(500, max_len)
+        num = 0
+        for i in range(state_emanation.shape[0]):
+            num = num + 1
+            x = np.linspace(0,1,len(state_emanation[i,:]))
+            xvals = np.linspace(0,1,max_len)
+            emanation_interp[num,:]= np.interp(xvals, x, state_emanation[i,:])
+        # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
+        # so we average over 50 emanation data points.
+        num_examples = 50
+        j=0
+        while(j<500):
+            emanations_fea[interp_index,:] = np.mean(emanation_interp[j:j+num_examples,:], axis=0)
+            interp_index = interp_index + 1
+            j = j + j+num_examples
+    # conducting  tsne to show the 2d scattering plot
+    conc_feas = np.hstack((powers_fea, emanations_fea))
+    embedded_feas = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=3).fit_transform(conc_feas)
+    
+    # scatter plot
+    plt.scatter(embedded_feas[:0], embedded_feas[:1])
+    plt.savefig('tsne.png', bbox_inches='tight')
+    plt.close()
