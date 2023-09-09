@@ -20,6 +20,7 @@ import emanation_data
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
 import os
+import math
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -82,6 +83,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 def read_from_arduino():
     print("Start reading from Arduino...")
@@ -178,7 +180,7 @@ async def start_sensing(device: str, idx: str, background_tasks: BackgroundTasks
     global listening, start_time
     listening = True
     start_time = time.time()
-    os.environ['IDX']= idx
+    os.environ['IDX'] = idx
     background_tasks.add_task(read_from_sm200, device, idx)
 
     return {"message": "Start Sensing for " + idx + "!"}
@@ -205,7 +207,8 @@ async def read_from_sm200(device, idx):
 
 async def run_in_process(fn, *args):
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(app.state.executor, fn, *args)  # wait and return result
+    # wait and return result
+    return await loop.run_in_executor(app.state.executor, fn, *args)
 
 
 @app.get("/waitForDataProcessing")
@@ -224,7 +227,7 @@ async def waitForProcessing():
     #     create_data(jsonable_encoder(data), "emanation")
     print("states: ", len(state_infos))
     while len(state_infos) != len(processes):
-        time.sleep(1) 
+        time.sleep(1)
 
     state_infos = []
     processes = []
@@ -309,10 +312,11 @@ async def classfication(data: DataModel = Body(...)):
         data_points_info = data_points
     else:
         # tsne
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        tsne = TSNE(n_components=2, perplexity=40, init="pca")
-        X_scaled = tsne.fit_transform(X_scaled)
+        # scaler = StandardScaler()
+        # X_scaled = scaler.fit_transform(X)
+        print("re - tsne")
+        tsne = TSNE(n_components=2, perplexity=5)
+        X_scaled = tsne.fit_transform(X)
         for i in range(len(X_scaled)):
             data_points_info.append({
                 "x": float(X_scaled[i][0]),
@@ -333,7 +337,7 @@ async def classfication(data: DataModel = Body(...)):
 async def verify():
     global listening, max_currents, avg_currents, min_currents, times
     listening = False
-    features = get_features(avg_currents, max_currents, min_currents)
+    features = get_power_features(avg_currents, max_currents, min_currents)
     predict_state(features)
     clear_data()
 
@@ -399,10 +403,16 @@ def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, X, 
                     labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
                         device, nodes, children_nodes, labels, collected_nodes, X, Y, Y_true)
             else:
-                avg_currents, max_currents, min_currents, times = get_data(
+                avg_currents, max_currents, min_currents, times = get_power_data(
                     device, node["id"])
-                features = get_features(
+                power_features = get_power_features(
                     avg_currents, max_currents, min_currents)
+                # emanation_data = get_emanation_data(device, node["id"])
+                # emanation_features = get_emanation_features(
+                #     emanation_data, len(power_features))
+                # features = np.hstack((power_features, emanation_features))
+
+                features = power_features
                 for feature in features:
                     X.append(feature)
                     Y.append(len(labels) - 1)
@@ -418,7 +428,7 @@ def build_dataset(device, nodes):
     Y = []
     Y_true = []
 
-    order = ["combinedNode", "semanticNode", "stateNode"]
+    order = ["semanticNode", "stateNode"]
     sorted_nodes = sorted(nodes, key=lambda x: order.index(x["type"]))
 
     labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
@@ -430,9 +440,9 @@ def build_dataset(device, nodes):
     return labels, collected_nodes, X, Y, Y_true
 
 
-def get_features(avg_currents, max_currents, min_currents):
+def get_power_features(avg_currents, max_currents, min_currents):
     group_size = 5
-    features = []
+    power_features = []
 
     for i in range(len(avg_currents)):
         start_idx = i * group_size
@@ -442,19 +452,48 @@ def get_features(avg_currents, max_currents, min_currents):
         avgs = avg_currents[start_idx: end_idx]
         maxs = max_currents[start_idx: end_idx]
         mins = min_currents[start_idx: end_idx]
-        avg_features = [fea(avgs) for fea in [
-            np.mean, np.std, lambda x: np.max(x) - np.min(x)]]
-        max_features = [fea(maxs) for fea in [np.mean, np.std]]
-        min_features = [fea(mins) for fea in [np.mean, np.std]]
+        # avg_features = [fea(avgs) for fea in [
+        #     np.mean, np.std, lambda x: np.max(x) - np.min(x)]]
+        # max_features = [fea(maxs) for fea in [np.mean, np.std]]
+        # min_features = [fea(mins) for fea in [np.mean, np.std]]
+
+        avg_features = [fea(avgs) for fea in [np.mean]]
+        # max_features = [fea(maxs) for fea in [np.mean]]
+        # min_features = [fea(mins) for fea in [np.mean]]
+
         feas = np.concatenate(
-            (avg_features, max_features, min_features))
-        features.append(feas)
+            (avg_features))
 
-    return features
+        power_features.append(feas)
+
+    return power_features
 
 
-def get_data(device, state):
-    data = app.database["iotdatas"].find_one({"device": device, "idx": state + "-power"})
+def get_emanation_features(emanation_data, groups_cnt):
+    group_size = math.floor(len(emanation_data) / groups_cnt)
+    emanation_features = []
+
+    for i in range(len(emanation_data)):
+        start_idx = i * group_size
+        end_idx = (i+1) * group_size
+        if end_idx > len(emanation_data) or len(emanation_features) == groups_cnt:
+            break
+        fea = np.mean(emanation_data[start_idx: end_idx], axis=0)
+        emanation_features.append(fea)
+
+    return emanation_features
+
+
+def get_emanation_data(device, state_idx):
+    data = app.database["iotdatas"].find_one(
+        {"device": device, "idx": state_idx + "-emanation"})
+    emanation_data = data["emanation"]
+    return emanation_data
+
+
+def get_power_data(device, state_idx):
+    data = app.database["iotdatas"].find_one(
+        {"device": device, "idx": state_idx + "-power"})
     avg_currents = data["avg_currents"]
     max_currents = data["max_currents"]
     min_currents = data["min_currents"]
@@ -582,3 +621,5 @@ def predict_state(features):
 
     print(pred)
 
+
+# ===========================================================================================================

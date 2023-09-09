@@ -146,6 +146,7 @@ export default function Board(props) {
 
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
         let newChart = { ...chart };
+        let idx = "#" + (newChart.nodes.length + 1) + " ";
         let position;
 
         // create edge from prev node
@@ -165,7 +166,7 @@ export default function Board(props) {
             type: "stateNode",
             position: position,
             positionAbsolute: position,
-            data: { label: state, status: status, action: action, prev: prevNode ? prevNode.id : null },
+            data: { label: idx + state, status: status, action: action, prev: prevNode ? prevNode.id : null },
             style: stateNodeStyle,
             zIndex: stateZIndex
         };
