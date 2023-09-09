@@ -178,6 +178,7 @@ async def start_sensing(device: str, idx: str, background_tasks: BackgroundTasks
     global listening, start_time
     listening = True
     start_time = time.time()
+    os.environ['IDX']= idx
     background_tasks.add_task(read_from_sm200, device, idx)
 
     return {"message": "Start Sensing for " + idx + "!"}
@@ -185,7 +186,6 @@ async def start_sensing(device: str, idx: str, background_tasks: BackgroundTasks
 
 async def read_from_sm200(device, idx):
     global q, state_infos, processes
-    os.environ['IDX']= idx
     # p = multiprocessing.Process(
     #     target=emanation_data.emanation_data, args=(q, idx))
     # os.environ['IDX']= idx

@@ -25,7 +25,7 @@ def getEmanations(filename):
     F_S = 250e6
     F_HOP = 100e6
     N_HOPS = 1
-    N_SWEEPS = 50
+    N_SWEEPS = 500
 
     while not os.path.exists(filename):
         continue
