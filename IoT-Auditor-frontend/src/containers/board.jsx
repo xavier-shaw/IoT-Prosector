@@ -59,7 +59,12 @@ export default function Board(props) {
     const handleClickNext = () => {
         if (step === 0) {
             setWaitForProcessing(true);
-            axios.get(window.HARDWARE_ADDRESS + "/waitForDataProcessing")
+            let newChart = nodeChartRef.current.updateAnnotation();
+
+            axios.post(window.HARDWARE_ADDRESS + "/waitForDataProcessing", {
+                device: board.title,
+                nodes: newChart.nodes
+            })
                 .then((resp) => {
                     console.log(resp);
                     setFinishProcess(true);
@@ -215,7 +220,7 @@ export default function Board(props) {
                         <>
                             <h6>&nbsp;You can </h6>
                             <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={startCollage}>Collage</Button>
-                            <h6>, interact, and .</h6>
+                            <h6>, interact, and </h6>
                             <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>Preview</Button>
                             <h6>the final state diagram.</h6>
                         </>

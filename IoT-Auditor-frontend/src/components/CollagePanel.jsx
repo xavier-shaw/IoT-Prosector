@@ -12,7 +12,7 @@ const CollagePanel = forwardRef((props, ref) => {
     const [prevNode, setPrevNode] = useState(null);
     const [prevNodeVideo, setPrevNodeVideo] = useState(null);
     const [actionVideo, setActionVideo] = useState(null);
-    const [figure, setFigure] = useState("confusion matrix");
+    const [figure, setFigure] = useState("correlation matrix");
     const [classificationData, setClassificationData] = useState({});
     const [hint, setHint] = useState("");
     const graphWidth = 670;
@@ -81,17 +81,18 @@ const CollagePanel = forwardRef((props, ref) => {
             })
             .then((resp) => {
                 let classificationData = {
-                    accuracy: resp.data.accuracy,
-                    matrix: resp.data.confusionMatrix,
-                    states: resp.data.states,
-                    dataPoints: resp.data.dataPoints
+                    matrix: resp.data.matrix,
+                    clusters: resp.data.clusters,
+                    groups: resp.data.groups,
+                    dataPoints: resp.data.data_points,
+                    dataLabels: resp.data.data_labels
                 }
 
                 let node = nodes.find((n) => n.id === selectedNode?.id);
                 setSelectedNode(node);
 
-                if (figure === "confusion matrix") {
-                    drawConfusionMatrix(classificationData);
+                if (figure === "correlation matrix") {
+                    drawCorrelationMatrix(classificationData);
                 }
                 else if (figure === "distribution") {
                     drawScatterplot(classificationData, nodes, node);
@@ -100,9 +101,8 @@ const CollagePanel = forwardRef((props, ref) => {
             })
     };
 
-    // ============================= Confusion Matrix ================================
-    const drawConfusionMatrix = (classificationData) => {
-        let accuracyOffset = 30;
+    // ============================= correlation matrix ================================
+    const drawCorrelationMatrix = (classificationData) => {
         let matrixOffset = 10;
         let labelOffset = 5;
         let labelRotate = -20;
@@ -111,7 +111,7 @@ const CollagePanel = forwardRef((props, ref) => {
         let legendWidth = 15;
         let margin = 80;
         let offsetX = 150;
-        let offsetY = accuracyOffset + matrixOffset;
+        let offsetY = matrixOffset;
         let legendHeight = graphHeight - offsetY - margin;
 
         document.getElementById("graph-panel").innerHTML = "";
@@ -119,14 +119,15 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("width", graphWidth)
             .attr("height", graphHeight);
 
-        svg.append("text")
-            .attr("x", graphWidth / 2)
-            .attr("y", accuracyOffset)
-            .attr("font-size", 20)
-            .style("text-anchor", "middle")
-            .text("Average Accuracy: " + classificationData.accuracy);
+        // svg.append("text")
+        //     .attr("x", graphWidth / 2)
+        //     .attr("y", accuracyOffset)
+        //     .attr("font-size", 20)
+        //     .style("text-anchor", "middle")
+        //     .text("Average Accuracy: " + classificationData.accuracy);
 
-        let cellSize = legendHeight / classificationData.matrix.length;
+        let cellWidth = graphWidth - legendWidth - offsetX
+        let cellHeight = legendHeight / classificationData.matrix.length;
         let colorScale = d3.scaleLinear()
             .domain([0, 0.5, 1])
             .range(["#FFFFDD", "#3E9583", "#1F2D86"])
@@ -135,15 +136,15 @@ const CollagePanel = forwardRef((props, ref) => {
             .data(classificationData.matrix)
             .enter().append('g')
             .attr("transform", function (d, i) {
-                return "translate(" + offsetX + ", " + (i * cellSize + offsetY) + ")"
+                return "translate(" + offsetX + ", " + (i * cellHeight + offsetY) + ")"
             })
             .selectAll('rect')
             .data(d => d)
             .enter().append('rect')
-            .attr('x', (d, i) => i * cellSize)
+            .attr('x', (d, i) => i * cellHeight)
             .attr('y', (d, i) => 0)
-            .attr('width', cellSize)
-            .attr('height', cellSize)
+            .attr('width', cellWidth)
+            .attr('height', cellHeight)
             .attr('fill', (d) => colorScale(d))
             .attr('stroke', 'black')
 
@@ -151,39 +152,39 @@ const CollagePanel = forwardRef((props, ref) => {
             .data(classificationData.matrix)
             .enter().append('g')
             .attr("transform", function (d, i) {
-                return "translate(" + offsetX + ", " + (i * cellSize + offsetY) + ")"
+                return "translate(" + offsetX + ", " + (i * cellHeight + offsetY) + ")"
             })
             .selectAll('.state-text')
             .data(d => d)
             .enter().append('text')
-            .attr('x', (d, i) => i * cellSize + cellSize / 2)
-            .attr('y', (d, i) => cellSize / 2)
+            .attr('x', (d, i) => i * cellHeight + cellHeight / 2)
+            .attr('y', (d, i) => cellHeight / 2)
             .attr('text-anchor', 'middle')
             .attr('font-size', 12)
             .attr('dy', '.35em')
             .text(d => d);
 
-        svg.selectAll('.true-states')
-            .data(classificationData.states)
+        svg.selectAll('.clusters')
+            .data(classificationData.clusters)
             .enter()
             .append('text')
             .text((d) => d)
             .attr("x", offsetX - labelOffset)
-            .attr("y", (d, i) => offsetY + i * cellSize + cellSize / 2)
+            .attr("y", (d, i) => offsetY + i * cellHeight + cellHeight / 2)
             .attr("alignment-baseline", "middle")
             .attr("text-anchor", "end")
             .attr("font-size", 16)
 
-        svg.selectAll('.predict-states')
-            .data(classificationData.states)
+        svg.selectAll('.groups')
+            .data(classificationData.groups)
             .enter()
             .append('text')
             .text((d) => d)
-            .attr("x", (d, i) => offsetX + i * cellSize + cellSize / 2)
+            .attr("x", (d, i) => offsetX + i * cellWidth + cellWidth / 2)
             .attr("y", offsetY + legendHeight + labelOffset + 10)
             .attr("text-anchor", "end")
             .attr("font-size", 16)
-            .attr("transform", (d, i) => "rotate(" + labelRotate + " " + (offsetX + i * cellSize + cellSize / 2) + " " + (offsetY + legendHeight + labelOffset + 10) + ")")
+            .attr("transform", (d, i) => "rotate(" + labelRotate + " " + (offsetX + i * cellWidth + cellWidth / 2) + " " + (offsetY + legendHeight + labelOffset + 10) + ")")
 
         //Calculate the variables for gradient
         var gradientScale = d3.scaleLinear()
@@ -239,6 +240,7 @@ const CollagePanel = forwardRef((props, ref) => {
     // ============================= Scatterplot ================================
     const drawScatterplot = (classificationData, nodes, selectedNode) => {
         let data = classificationData.dataPoints;
+        let labels = classificationData.dataLabels;
         let margin = 5;
         let cubeSize = 15;
         let seqSize = 30;
@@ -250,11 +252,12 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("width", graphWidth)
             .attr("height", graphHeight);
 
+        let stateNodes = nodes.filter((n) => n.type === "stateNode");
+
         const color = d3.scaleOrdinal()
-            .domain(nodes.filter((n) => n.type === "stateNode").map(d => d.id))
+            .domain(stateNodes.map(d => d.id))
             .range(customColors);
         
-        let stateNodes = nodes.filter((n) => n.type === "stateNode");
         let legend = svg.append("g")
             .attr("transform", `translate(${margin}, ${margin})`)
         legend
@@ -269,7 +272,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .selectAll("text")
             .data(stateNodes)
             .join("text")
-            .text(d => d.data.label.slice(0, 3))
+            .text(d => d.data.label.slice(0, 3).trim())
             .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize) + cubeSize}, 13)`)
 
         let xScaler = d3.scaleLinear()
@@ -294,14 +297,15 @@ const CollagePanel = forwardRef((props, ref) => {
                 .selectAll("circle")
                 .data(data)
                 .join("circle")
-                .attr("fill", d => {
-                    if (d.label === selectedNode.id) {
-                        return color(d.label);
+                .attr("fill", (d, i) => {
+                    let label = labels[i]
+                    if (label === selectedNode.id) {
+                        return color(label);
                     }
                     else if (selectedNode.parentNode) {
                         let parent = nodes.find((n) => n.id === selectedNode.parentNode);
-                        if (parent.data.children.includes(d.label)) {
-                            return color(d.label);
+                        if (parent.data.children.includes(label)) {
+                            return color(label);
                         }
                         else {
                             return noneColor;
@@ -311,7 +315,7 @@ const CollagePanel = forwardRef((props, ref) => {
                         return noneColor;
                     }
                 })
-                .attr("transform", d => `translate(${xScaler(d.x)},${yScaler(d.y)})`)
+                .attr("transform", d => `translate(${xScaler(d[0])},${yScaler(d[1])})`)
                 .attr("r", 3);
         }
         else {
@@ -320,16 +324,16 @@ const CollagePanel = forwardRef((props, ref) => {
                 .selectAll("circle")
                 .data(data)
                 .join("circle")
-                .attr("fill", d => color(d.label))
-                .attr("transform", d => `translate(${xScaler(d.x)},${yScaler(d.y)})`)
+                .attr("fill", (d, i) => color(labels[i]))
+                .attr("transform", d => `translate(${xScaler(d[0])},${yScaler(d[1])})`)
                 .attr("r", 3);
         }
     };
 
     const handleClickSelect = (type) => {
         setFigure(type);
-        if (type === "confusion matrix") {
-            drawConfusionMatrix(classificationData);
+        if (type === "correlation matrix") {
+            drawCorrelationMatrix(classificationData);
         }
         else if (type === "distribution") {
             drawScatterplot(classificationData, chart.nodes, selectedNode);
@@ -361,11 +365,11 @@ const CollagePanel = forwardRef((props, ref) => {
     return (
         <div className="collage-panel-div">
             <div className="select-panel">
-                <Button variant={figure === "confusion matrix" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("confusion matrix")}>
-                    Confusion Matrix
+                <Button variant={figure === "correlation matrix" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("correlation matrix")}>
+                    Correlation Matrix
                 </Button>
                 <Button variant={figure === "distribution" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("distribution")}>
-                    Distribution
+                    Distribution Scatterplot
                 </Button>
             </div>
             <div id="graph-panel">

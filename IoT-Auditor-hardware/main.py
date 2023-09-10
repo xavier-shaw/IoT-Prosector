@@ -65,6 +65,11 @@ start_time = 0
 sample_num = 150
 group_cnt = 10
 
+tsne_data_points = []
+tsne_data_labels = []
+state_cluster_dict = {}
+cluster_cnt = 0
+
 classifier = None
 labels = []
 data_points = {}
@@ -73,7 +78,7 @@ SEMANTIC_CLUSTERING = 0
 DATA_CLUSTERING = 1
 
 q = multiprocessing.Queue()
-state_infos = []
+finished_processes = []
 processes = []
 
 app = FastAPI()
@@ -181,38 +186,19 @@ async def start_sensing(device: str, idx: str, background_tasks: BackgroundTasks
     global listening, start_time
     listening = True
     start_time = time.time()
-    os.environ['IDX'] = idx
     background_tasks.add_task(read_from_sm200, device, idx)
 
     return {"message": "Start Sensing for " + idx + "!"}
 
 
-@app.get("/stopSensing")
-async def stop_sensing():
-    global listening, max_currents, avg_currents, min_currents, times
-    listening = False
-    return {"message": "Stop Sensing!"}
-
 async def read_from_sm200(device, idx):
-    global q, state_infos, processes
-    # p = multiprocessing.Process(
-    #     target=emanation_data.emanation_data, args=(q, idx))
-    # os.environ['IDX']= idx
-    # state_infos.append((device, idx))
-    # processes.append(p)
-    # p.start()
+    global processes, finished_processes
     processes.append(idx)
     emanation_result = await run_in_process(emanation_data.emanation_data, idx)
-    state_infos.append(idx)
-    # data = {
-    #     "device": device,
-    #     "idx": idx + "-emanation",
-    #     "emanation": emanation_result
-    # }
-    # create_data(jsonable_encoder(data), "emanation")
     file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + idx + ".pkl"
     with open(file_name, 'wb') as file:
         pickle.dump(emanation_result, file)
+    finished_processes.append(idx)
     print("finish emanation data storing")
 
 
@@ -222,28 +208,11 @@ async def run_in_process(fn, *args):
     return await loop.run_in_executor(app.state.executor, fn, *args)
 
 
-@app.get("/waitForDataProcessing")
-async def waitForProcessing():
-    global q, state_infos, processes
-    # for process in processes:
-    #     process.join()
-
-    # for device, idx in state_infos:
-    #     emanation_data = q.get()
-    #     data = {
-    #         "device": device,
-    #         "idx": idx + "-emanation",
-    #         "emanation": emanation_data.tolist()
-    #     }
-    #     create_data(jsonable_encoder(data), "emanation")
-    print("states: ", len(state_infos))
-    while len(state_infos) != len(processes):
-        time.sleep(1)
-
-    state_infos = []
-    processes = []
-
-    return {"message": "Finish Processing!"}
+@app.get("/stopSensing")
+async def stop_sensing():
+    global listening, max_currents, avg_currents, min_currents, times
+    listening = False
+    return {"message": "Stop Sensing!"}
 
 
 @app.get("/storeData")
@@ -259,81 +228,106 @@ class DataModel(BaseModel):
     nodes: List[dict]
 
 
+@app.post("/waitForDataProcessing")
+async def waitForProcessing(data: DataModel = Body(...)):
+    global processes, finished_processes 
+    while len(finished_processes) != len(processes):
+        time.sleep(1)
+
+    finished_processes = []
+    processes = []
+
+    data_model_hints, group_idx = process_data(data.device, data.nodes)
+
+    resp = {
+        "data_model_group_cnt": group_idx,
+        "data_model_hints": data_model_hints
+    }
+
+    return JSONResponse(content=jsonable_encoder(resp))
+
+
+def process_data(device, nodes):
+    global tsne_data_points, tsne_data_labels, state_cluster_dict, cluster_cnt
+
+    state_nodes = [n for n in nodes if n["type"] == "stateNode"]
+
+    power_datas = []
+    emanation_datas = []
+    states_info = []
+
+    power_datas, emanation_datas, states_info = get_all_raw_data(
+        device, state_nodes)
+    features, states_labels = data_processing(
+        states_info, power_datas, emanation_datas)
+    tsne_data_points = features
+    tsne_data_labels = states_labels
+
+    state_distribution_dict = cluster_states(features, states_labels)
+    # data_model_hints: a dictionary that shows which data-oriented cluster the state is belonged to => hints[state_id] = cluster_id
+    data_model_hints, group_idx = generate_collage_node(
+        state_distribution_dict)
+
+    state_cluster_dict = data_model_hints
+    cluster_cnt = group_idx
+
+    return data_model_hints, group_idx
+
+
 @app.post("/collage")
-async def collage(data: DataModel = Body(...)):
-    # 1. split nodes to different groups by action
-    # 2. run clustering algorithm inside each group => semantic group states
-    # 3. based on semantic result, run clustering algorithm again => combined group state
-    # 4. we have a heirarchical graph
-
-    semantic_group_idx = 0
-    semantic_node_collage_dict = {}
-
-    actions, action_node_dict, action_collage_dict = action_match(data.nodes)
-    new_X = []
-    new_Y = []
-    for action, nodes in action_node_dict.items():
-        states, ids, X, Y, Y_true = build_dataset(data.device, nodes)
-        semantic_distribution_dict = cluster_states(X, Y, SEMANTIC_CLUSTERING)
-        semantic_node_collage_dict, semantic_group_idx = generate_collage_node(
-            semantic_distribution_dict, ids, semantic_group_idx, semantic_node_collage_dict)
-        new_X, new_Y = build_semantic_dataset(
-            semantic_node_collage_dict, ids, X, Y, new_X, new_Y)
-
-    combined_group_idx = 0
-    combined_distribution_dict = cluster_states(new_X, new_Y, DATA_CLUSTERING)
-    combined_node_collage_dict, combined_group_idx = build_final_collage_node(
-        semantic_node_collage_dict, combined_distribution_dict, combined_group_idx)
+async def action_collage(data: DataModel = Body(...)):
+    actions, action_collage_dict = action_match(data.nodes)
 
     resp = {
         "action_group_count": len(actions),
-        "action_collage_dict": action_collage_dict,
-        "semantic_group_cnt": semantic_group_idx,
-        "semantic_collage_dict": semantic_node_collage_dict,
-        "combined_group_cnt": combined_group_idx,
-        "combined_collage_dict": combined_node_collage_dict
+        "action_collage_dict": action_collage_dict
     }
 
-    print("action", action_collage_dict)
-    print("sementic-data", semantic_node_collage_dict)
-    print("data", combined_node_collage_dict)
     return JSONResponse(content=jsonable_encoder(resp))
+
+
+def get_state_group_info(nodes):
+    state_group_info = {}
+    parent_node_ids = []
+
+    for node in nodes:
+        node_id = node["id"]
+        if node["parentNode"]:
+            state_group_info[node_id] = node["parentNode"]
+        else:
+            state_group_info[node_id] = node_id
+            parent_node_ids.append(node_id)
+    
+    return state_group_info, parent_node_ids
 
 
 @app.post("/classification")
 async def classfication(data: DataModel = Body(...)):
-    global classifier, labels, data_points
+    global classifier, labels, data_points, tsne_data_points, state_cluster_dict, cluster_cnt
+    # To show the cohesion level inside each group and coupling level between different groups
+    # X: tsne_data_points (20 * num_of_states)
+    # Y: group_labels   
+    
+    state_group_info, parent_node_ids = get_state_group_info(data.nodes)
+    
+    corr_matrix = np.zeros((cluster_cnt, len(parent_node_ids)))
+    for state_id in tsne_data_labels:
+        group_id = state_group_info[state_id]
+        cluster_label = state_cluster_dict[state_id]
+        corr_matrix[parent_node_ids.index(group_id), cluster_label] += 1
 
-    states, ids, X, Y, Y_true = build_dataset(data.device, data.nodes)
+    row_sums = corr_matrix.sum(axis=1).reshape(-1, 1)
+    corr_matrix /= row_sums
+    corr_matrix = np.around(corr_matrix, 2)
 
-    # classification model
-    clf, cms, acc = classify(states, X, Y)
-    classifier = clf
-    labels = states
-
-    # tsne dta points
-    data_points_info = []
-    if len(data_points) > 0:
-        data_points_info = data_points
-    else:
-        # tsne
-        # scaler = StandardScaler()
-        # X_scaled = scaler.fit_transform(X)
-        print("re - tsne")
-        tsne = TSNE(n_components=2, perplexity=5)
-        X_scaled = tsne.fit_transform(X)
-        for i in range(len(X_scaled)):
-            data_points_info.append({
-                "x": float(X_scaled[i][0]),
-                "y": float(X_scaled[i][1]),
-                "label": Y_true[i]
-            })
-
+    clusters = [("#" + i) for i in range(cluster_cnt)]
+    groups = [node["data"]["label"] for node in data.nodes if node["id"] in parent_node_ids]
     resp = {
-        "accuracy": round(acc, 3),
-        "confusionMatrix": cms,
-        "states": states,
-        "dataPoints": data_points_info
+        "matrix": corr_matrix,
+        "clusters": clusters,
+        "groups": groups,
+        "data_points": tsne_data_points,
+        "data_labels": tsne_data_labels
     }
     return JSONResponse(content=jsonable_encoder(resp))
 
@@ -349,25 +343,6 @@ async def verify():
     return {"message": "predict state"}
 
 
-@app.get("/emanationTest")
-async def emanation_test(data: DataModel = Body(...)):
-    device = data.device
-    nodes = data.nodes
-    collected_nodes = []
-    labels = []
-
-    order = ["semanticNode", "stateNode"]
-    sorted_nodes = sorted(nodes, key=lambda x: order.index(x["type"]))
-
-    power_datas = []
-    emanation_datas = []
-    states_info = []
-    groups_info = []
-    labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
-        device, sorted_nodes, sorted_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=True)
-    data_processing(states_info, power_datas, emanation_datas)
-
-    return {"message": "test emanation process"}
 # ========================================= Functions =========================================================
 
 
@@ -397,64 +372,36 @@ def store_power_data(device, idx, max_currents, avg_currents, min_currents, time
 
 
 def action_match(nodes):
-    actions = []
-    action_node_dict = {}
+    actions = []      
     action_collage_dict = {}
 
     for node in nodes:
         action = node["data"]["action"]
-        if action in actions:
-            action_node_dict[action].append(node)
-        else:
+        if action not in actions:
             actions.append(action)
-            action_node_dict[action] = [node]
 
         action_collage_dict[node["id"]] = actions.index(action)
 
-    return actions, action_node_dict, action_collage_dict
+    return actions, action_collage_dict
 
 
-def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=False):
-    for node in target_nodes:
-        if node["id"] not in collected_nodes:
-            collected_nodes.append(node["id"])
-            if independent:
-                labels.append(node["data"]["label"])
+def get_all_raw_data(device, nodes):
+    global state_group_info
+    power_datas = []
+    emanation_datas = []
+    states_info = []
 
-            if "children" in node["data"]:
-                children = node["data"]["children"]
-                if len(children) > 0:
-                    children_nodes = [n for n in nodes if n["id"] in children]
-                    # labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
-                    #     device, nodes, children_nodes, labels, collected_nodes, X, Y, Y_true)
-                    labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
-                        device, nodes, children_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info)
-            else:
-                avg_currents, max_currents, min_currents, times = get_power_data(
-                    device, node["id"])
-                emanation_data = get_emanation_data(device, node["id"])
-                power_datas.append(avg_currents)
-                emanation_datas.append(emanation_data)
-                # states_info.append(node["id"])
-                states_info.append(node["data"]["label"])
-                if "parentNode" in node["data"]:
-                    groups_info.append(node["data"]["parentNode"])
-                else:
-                    groups_info.append(node["id"])
-                # power_features = get_power_features(
-                #     avg_currents, max_currents, min_currents)
-                # emanation_data = get_emanation_data(device, node["id"])
-                # emanation_features = get_emanation_features(
-                #     emanation_data, len(power_features))
-                # features = np.hstack((power_features, emanation_features))
-                # features = power_features
-                # for feature in features:
-                #     X.append(feature)
-                #     Y.append(len(labels) - 1)
-                #     Y_true.append(node["id"])
+    for node in nodes:
+        avg_currents, max_currents, min_currents, times = get_power_data(
+            device, node["id"])
+        emanation_data = get_emanation_data(device, node["id"])
+        power_datas.append(avg_currents)
+        emanation_datas.append(emanation_data)
+        states_info.append(node["id"])
+        state_group_info[node["id"]] = node["id"]
 
     # return labels, collected_nodes, X, Y, Y_true
-    return labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info
+    return power_datas, emanation_datas, states_info
 
 
 def build_dataset(device, nodes):
@@ -474,7 +421,7 @@ def build_dataset(device, nodes):
     emanation_datas = []
     states_info = []
     groups_info = []
-    labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
+    labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = get_all_raw_data(
         device, sorted_nodes, sorted_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=True)
 
     # process data to get X, Y, Y_true_state, Y_true_group
@@ -534,11 +481,11 @@ def get_emanation_data(device, state_idx):
     # data = app.database["iotdatas"].find_one(
     #     {"device": device, "idx": state_idx + "-emanation"})
     # emanation_data = data["emanation"]
-   
+
     # file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
     # with open(file_name, 'rb') as file:
     #     emanation_data = pickle.load(file)
-    
+
     file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
     emanation_result = []
     with open(file_name, 'rb') as file:
@@ -546,18 +493,17 @@ def get_emanation_data(device, state_idx):
         for final_power in power_result:
             emanation_res = np.array([
                 np.mean(final_power),
-                np.median(final_power), 
-                
-                np.std(final_power), 
-                np.var(final_power), 
-                np.average(final_power), 
-                np.sqrt(np.mean(final_power**2)), 
-                stats.median_abs_deviation(final_power), 
-                stats.skew(final_power), 
-                stats.kurtosis(final_power, fisher=False), 
-                stats.iqr(final_power), 
+                np.median(final_power),
+                np.std(final_power),
+                np.var(final_power),
+                np.average(final_power),
+                np.sqrt(np.mean(final_power**2)),
+                stats.median_abs_deviation(final_power),
+                stats.skew(final_power),
+                stats.kurtosis(final_power, fisher=False),
+                stats.iqr(final_power),
                 np.mean((final_power - np.mean(final_power))**2)
-                ])
+            ])
             emanation_result.append(emanation_res)
     return emanation_result
 
@@ -605,31 +551,30 @@ def classify(states, X, Y):
     return clf, avg_cm, avg_accuracy
 
 
-def generate_collage_node(distribution_dict, ids, group_idx, node_collage_dict):
+def generate_collage_node(distribution_dict, node_collage_dict):
     cluster_map = {}
+    group_idx = 0
     for state, clusters in distribution_dict.items():
         cluster = int(np.argmax(clusters))
         if cluster not in cluster_map:
             cluster_map[cluster] = group_idx
             group_idx += 1
-        node_collage_dict[ids[state]] = cluster_map[cluster]
+        node_collage_dict[state] = cluster_map[cluster]
 
     return node_collage_dict, group_idx
 
 
-def cluster_states(X, Y, type):
-    scaler = StandardScaler()
-    scaled_X = scaler.fit_transform(X)
+def cluster_states(X, Y):
     num_of_states = len(set(Y))
 
     # Silhouette Score
-    clusters_nums = [i for i in range(type + 2, num_of_states + 1)]
+    clusters_nums = [i for i in range(2, num_of_states + 1)]
     sil = []
     for i in clusters_nums:  # Silhouette score is defined only for more than 1 cluster
         kmeans = KMeans(n_clusters=i, init='k-means++',
                         max_iter=300, n_init=10, random_state=42)
-        kmeans.fit(scaled_X)
-        silhouette_avg = silhouette_score(scaled_X, kmeans.labels_)
+        kmeans.fit(X)
+        silhouette_avg = silhouette_score(X, kmeans.labels_)
         sil.append(silhouette_avg)
 
     # plt.plot(range(type + 2, num_of_states + 1), sil)
@@ -640,12 +585,10 @@ def cluster_states(X, Y, type):
     # plt.savefig('silhouette_score.png', bbox_inches='tight')
     # plt.close()
 
-    best_cluster_number = 1
-    if len(sil) > 0:
-        best_cluster_number = clusters_nums[np.argmax(sil)]
+    best_cluster_number = clusters_nums[np.argmax(sil)]
     kmeans = KMeans(n_clusters=best_cluster_number,
                     init='k-means++', max_iter=300, n_init=10, random_state=42)
-    kpred = kmeans.fit_predict(scaled_X)
+    kpred = kmeans.fit_predict(X)
 
     distribution_dict = {l: [0 for i in range(
         best_cluster_number)] for l in range(num_of_states)}
@@ -696,39 +639,46 @@ def predict_state(features):
 # ===========================================================================================================
 def data_processing(states, raw_power_data, raw_emanation_data):
     max_len = 11  # largest length of emanation vector
-    powers = [] # list with (number of states x  10), 10 means each state will have 10 data features 
+    # list with (number of states x  10), 10 means each state will have 10 data features
+    powers = []
+    state_labels = []
+
     for state_idx in range(len(states)):
         # state power data: average values of current => size: (1 * 200)
         # state emanation data: data from the .32cf file => size: (500, k)
         state_power_data = raw_power_data[state_idx]
         state_emanation = raw_emanation_data[state_idx]
-        i=0
+        i = 0
         num = 20
-        power = []# one iot state will have 10 examples which is averaged over 20 power data points
-        while(i<200):
-           powers.append(state_power_data[i:i+num])
-           i=i+num
+        power = []  # one iot state will have 10 examples which is averaged over 20 power data points
+        while (i < 200):
+            powers.append(state_power_data[i:i+num])
+            state_labels.append(states[state_idx])  # the state of the data
+            i = i+num
     # converting powers to be array
     powers_fea = np.array(powers)
-    
-    # interpolating the emanations 
-    emanations_fea = np.zeros((len(states)*10, max_len)) # 10 indicates that one iot state has 10 examples
+
+    # interpolating the emanations
+    # 10 indicates that one iot state has 10 examples
+    emanations_fea = np.zeros((len(states)*10, max_len))
     interp_index = 0
-    for state_idx in range(len(states)): # interpolating emanation vectors
+    for state_idx in range(len(states)):  # interpolating emanation vectors
         state_emanation = raw_emanation_data[state_idx]
         emanation_interp = np.zeros((500, max_len))
         num = 0
         for i in range(len(state_emanation)):
             max_emanation = max(state_emanation[i])
-            min_emanation = min(state_emanation[i]) 
-            emanation_interp[i, :] = (state_emanation[i]-min_emanation)/(max_emanation-min_emanation)
+            min_emanation = min(state_emanation[i])
+            emanation_interp[i, :] = (
+                state_emanation[i]-min_emanation)/(max_emanation-min_emanation)
 
         # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
         # so we average over 50 emanation data points.
         num_examples = 50
-        j=0
-        while(j<500):
-            emanations_fea[interp_index,:] = np.mean(emanation_interp[j:j+num_examples,:], axis=0)
+        j = 0
+        while (j < 500):
+            emanations_fea[interp_index, :] = np.mean(
+                emanation_interp[j:j+num_examples, :], axis=0)
             interp_index = interp_index + 1
             j = j + j+num_examples
 
@@ -736,6 +686,7 @@ def data_processing(states, raw_power_data, raw_emanation_data):
     print("power: ", powers_fea.shape)
     print("emanation: ", emanations_fea.shape)
     conc_feas = np.hstack((powers_fea, emanations_fea))
-    embedded_feas = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=5).fit_transform(conc_feas)
-    
-    
+    embedded_feas = TSNE(n_components=2, learning_rate='auto',
+                         init='random', perplexity=5).fit_transform(conc_feas)
+
+    return embedded_feas.tolist(), state_labels
