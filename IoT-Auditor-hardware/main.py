@@ -350,20 +350,14 @@ async def verify():
 
 
 @app.get("/emanationTest")
-async def emanation_test():
-    device = "test"
-    nodes = app.database["boards"].find_one({"title": device})["chart"]["nodes"]
+async def emanation_test(data: DataModel = Body(...)):
+    device = data.device
+    nodes = data.nodes
     collected_nodes = []
     labels = []
-    X = []
-    Y = []
-    Y_true = []
 
     order = ["semanticNode", "stateNode"]
     sorted_nodes = sorted(nodes, key=lambda x: order.index(x["type"]))
-
-    # labels, collected_nodes, X, Y, Y_true = dfs_traverse_graph(
-    #     device, sorted_nodes, sorted_nodes, labels, collected_nodes, X, Y, Y_true, independent=True)
 
     power_datas = []
     emanation_datas = []
@@ -371,9 +365,6 @@ async def emanation_test():
     groups_info = []
     labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
         device, sorted_nodes, sorted_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=True)
-    print(len(states_info))
-    print(len(power_datas))
-    print(len(emanation_datas))
     data_processing(states_info, power_datas, emanation_datas)
 
     return {"message": "test emanation process"}
@@ -547,9 +538,27 @@ def get_emanation_data(device, state_idx):
     # file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
     # with open(file_name, 'rb') as file:
     #     emanation_data = pickle.load(file)
-    print("start: ", state_idx)
-    emanation_result = emanation_data.recalculate_emanation_data(state_idx)
-    print("finish: ", state_idx)
+    
+    file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
+    emanation_result = []
+    with open(file_name, 'rb') as file:
+        power_result = pickle.load(file)
+        for final_power in power_result:
+            emanation_res = np.array([
+                np.mean(final_power),
+                np.median(final_power), 
+                
+                np.std(final_power), 
+                np.var(final_power), 
+                np.average(final_power), 
+                np.sqrt(np.mean(final_power**2)), 
+                stats.median_abs_deviation(final_power), 
+                stats.skew(final_power), 
+                stats.kurtosis(final_power, fisher=False), 
+                stats.iqr(final_power), 
+                np.mean((final_power - np.mean(final_power))**2)
+                ])
+            emanation_result.append(emanation_res)
     return emanation_result
 
 
@@ -686,13 +695,12 @@ def predict_state(features):
 
 # ===========================================================================================================
 def data_processing(states, raw_power_data, raw_emanation_data):
-    max_len = 0  # largest length of emanation vector
+    max_len = 11  # largest length of emanation vector
     powers = [] # list with (number of states x  10), 10 means each state will have 10 data features 
     for state_idx in range(len(states)):
         # state power data: average values of current => size: (1 * 200)
         # state emanation data: data from the .32cf file => size: (500, k)
         state_power_data = raw_power_data[state_idx]
-        print("power data size: ", len(state_power_data))
         state_emanation = raw_emanation_data[state_idx]
         i=0
         num = 20
@@ -700,12 +708,6 @@ def data_processing(states, raw_power_data, raw_emanation_data):
         while(i<200):
            powers.append(state_power_data[i:i+num])
            i=i+num
-        # powers.append(power)
-        # get the largest length of the emantion vector
-        # print(len(state_emanation))
-        for i in range(len(state_emanation)):
-            state_emanation_example = state_emanation[i]
-            max_len = max(max_len, len(state_emanation_example))
     # converting powers to be array
     powers_fea = np.array(powers)
     
@@ -717,10 +719,10 @@ def data_processing(states, raw_power_data, raw_emanation_data):
         emanation_interp = np.zeros((500, max_len))
         num = 0
         for i in range(len(state_emanation)):
-            # num = num + 1
-            x = np.linspace(0,1,len(state_emanation[i]))
-            xvals = np.linspace(0,1,max_len)
-            emanation_interp[i,:]= np.interp(xvals, x, state_emanation[i])
+            max_emanation = max(state_emanation[i])
+            min_emanation = min(state_emanation[i]) 
+            emanation_interp[i, :] = (state_emanation[i]-min_emanation)/(max_emanation-min_emanation)
+
         # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
         # so we average over 50 emanation data points.
         num_examples = 50
@@ -736,15 +738,4 @@ def data_processing(states, raw_power_data, raw_emanation_data):
     conc_feas = np.hstack((powers_fea, emanations_fea))
     embedded_feas = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=5).fit_transform(conc_feas)
     
-    # scatter plot
-    customColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
-'#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8',
-'#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000']
-    uniq_labels = set()
-    for i in range(embedded_feas.shape[0]):
-        state = states[int(i / 10)]
-        plt.scatter(embedded_feas[i][0], embedded_feas[i][1], color=customColors[int(i / 10)], label=state if state not in uniq_labels else "")
-        uniq_labels.add(state)
-    plt.legend(loc='best')
-    # plt.savefig('tsne.png', bbox_inches='tight')
-    plt.show()
+    
