@@ -142,7 +142,7 @@ def getEmanations_raw(filename):
             move_power = medfilt(power_good, 301)
             # find the peaks that are psd of the emanations
             final_power = power_good - move_power
-            peaks, _ = find_peaks(final_power, height=1.4)
+            peaks, _ = find_peaks(final_power, height=3)
 
             # power_ix = np.array([np.mean(final_power[peaks]), np.median(final_power[peaks]), np.std(
             #     final_power[peaks]), np.var(final_power[peaks]), np.average(final_power[peaks])])
@@ -154,5 +154,4 @@ def getEmanations_raw(filename):
             # print(power_ix)
 
             # powers.append(final_power[power_ix])
-
     return power_result

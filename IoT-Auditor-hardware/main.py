@@ -14,6 +14,7 @@ import numpy as np
 import time
 import pickle
 import multiprocessing
+import subprocess
 import network_data
 import power_data
 import emanation_data
@@ -186,6 +187,12 @@ async def start_sensing(device: str, idx: str, background_tasks: BackgroundTasks
     return {"message": "Start Sensing for " + idx + "!"}
 
 
+@app.get("/stopSensing")
+async def stop_sensing():
+    global listening, max_currents, avg_currents, min_currents, times
+    listening = False
+    return {"message": "Stop Sensing!"}
+
 async def read_from_sm200(device, idx):
     global q, state_infos, processes
     # p = multiprocessing.Process(
@@ -197,12 +204,16 @@ async def read_from_sm200(device, idx):
     processes.append(idx)
     emanation_result = await run_in_process(emanation_data.emanation_data, idx)
     state_infos.append(idx)
-    data = {
-        "device": device,
-        "idx": idx + "-emanation",
-        "emanation": emanation_result.tolist()
-    }
-    create_data(jsonable_encoder(data), "emanation")
+    # data = {
+    #     "device": device,
+    #     "idx": idx + "-emanation",
+    #     "emanation": emanation_result
+    # }
+    # create_data(jsonable_encoder(data), "emanation")
+    file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + idx + ".pkl"
+    with open(file_name, 'wb') as file:
+        pickle.dump(emanation_result, file)
+    print("finish emanation data storing")
 
 
 async def run_in_process(fn, *args):
@@ -233,13 +244,6 @@ async def waitForProcessing():
     processes = []
 
     return {"message": "Finish Processing!"}
-
-
-@app.get("/stopSensing")
-async def stop_sensing():
-    global listening, max_currents, avg_currents, min_currents, times
-    listening = False
-    return {"message": "Stop Sensing!"}
 
 
 @app.get("/storeData")
@@ -300,8 +304,6 @@ async def collage(data: DataModel = Body(...)):
 async def classfication(data: DataModel = Body(...)):
     global classifier, labels, data_points
 
-
-
     states, ids, X, Y, Y_true = build_dataset(data.device, data.nodes)
 
     # classification model
@@ -349,7 +351,7 @@ async def verify():
 
 @app.get("/emanationTest")
 async def emanation_test():
-    device = "test emanation"
+    device = "test"
     nodes = app.database["boards"].find_one({"title": device})["chart"]["nodes"]
     collected_nodes = []
     labels = []
@@ -369,8 +371,10 @@ async def emanation_test():
     groups_info = []
     labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info = dfs_traverse_graph(
         device, sorted_nodes, sorted_nodes, labels, collected_nodes, power_datas, emanation_datas, states_info, groups_info, independent=True)
-    
-    data_processing(state_infos, power_datas, emanation_datas)
+    print(len(states_info))
+    print(len(power_datas))
+    print(len(emanation_datas))
+    data_processing(states_info, power_datas, emanation_datas)
 
     return {"message": "test emanation process"}
 # ========================================= Functions =========================================================
@@ -440,9 +444,10 @@ def dfs_traverse_graph(device, nodes, target_nodes, labels, collected_nodes, pow
                 emanation_data = get_emanation_data(device, node["id"])
                 power_datas.append(avg_currents)
                 emanation_datas.append(emanation_data)
-                states_info.append(node["id"])
-                if node["parentNode"]:
-                    groups_info.append(node["parentNode"])
+                # states_info.append(node["id"])
+                states_info.append(node["data"]["label"])
+                if "parentNode" in node["data"]:
+                    groups_info.append(node["data"]["parentNode"])
                 else:
                     groups_info.append(node["id"])
                 # power_features = get_power_features(
@@ -535,10 +540,17 @@ def get_emanation_features(emanation_data, groups_cnt):
 
 
 def get_emanation_data(device, state_idx):
-    data = app.database["iotdatas"].find_one(
-        {"device": device, "idx": state_idx + "-emanation"})
-    emanation_data = data["emanation"]
-    return emanation_data
+    # data = app.database["iotdatas"].find_one(
+    #     {"device": device, "idx": state_idx + "-emanation"})
+    # emanation_data = data["emanation"]
+   
+    # file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
+    # with open(file_name, 'rb') as file:
+    #     emanation_data = pickle.load(file)
+    print("start: ", state_idx)
+    emanation_result = emanation_data.recalculate_emanation_data(state_idx)
+    print("finish: ", state_idx)
+    return emanation_result
 
 
 def get_power_data(device, state_idx):
@@ -680,34 +692,35 @@ def data_processing(states, raw_power_data, raw_emanation_data):
         # state power data: average values of current => size: (1 * 200)
         # state emanation data: data from the .32cf file => size: (500, k)
         state_power_data = raw_power_data[state_idx]
+        print("power data size: ", len(state_power_data))
         state_emanation = raw_emanation_data[state_idx]
         i=0
         num = 20
         power = []# one iot state will have 10 examples which is averaged over 20 power data points
-        while(i<len(state_power_data)):
-           power.append(np.mean(state_power_data[i:i+num]))
+        while(i<200):
+           powers.append(state_power_data[i:i+num])
            i=i+num
-        powers.append(power)
+        # powers.append(power)
         # get the largest length of the emantion vector
-        
-        for i in range(state_emanation.shape[0]):
-            state_emanation_example = state_emanation[i,:]
+        # print(len(state_emanation))
+        for i in range(len(state_emanation)):
+            state_emanation_example = state_emanation[i]
             max_len = max(max_len, len(state_emanation_example))
     # converting powers to be array
     powers_fea = np.array(powers)
-
+    
     # interpolating the emanations 
     emanations_fea = np.zeros((len(states)*10, max_len)) # 10 indicates that one iot state has 10 examples
     interp_index = 0
     for state_idx in range(len(states)): # interpolating emanation vectors
         state_emanation = raw_emanation_data[state_idx]
-        emanation_interp = np.zeros(500, max_len)
+        emanation_interp = np.zeros((500, max_len))
         num = 0
-        for i in range(state_emanation.shape[0]):
-            num = num + 1
-            x = np.linspace(0,1,len(state_emanation[i,:]))
+        for i in range(len(state_emanation)):
+            # num = num + 1
+            x = np.linspace(0,1,len(state_emanation[i]))
             xvals = np.linspace(0,1,max_len)
-            emanation_interp[num,:]= np.interp(xvals, x, state_emanation[i,:])
+            emanation_interp[i,:]= np.interp(xvals, x, state_emanation[i])
         # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
         # so we average over 50 emanation data points.
         num_examples = 50
@@ -716,11 +729,22 @@ def data_processing(states, raw_power_data, raw_emanation_data):
             emanations_fea[interp_index,:] = np.mean(emanation_interp[j:j+num_examples,:], axis=0)
             interp_index = interp_index + 1
             j = j + j+num_examples
+
     # conducting  tsne to show the 2d scattering plot
+    print("power: ", powers_fea.shape)
+    print("emanation: ", emanations_fea.shape)
     conc_feas = np.hstack((powers_fea, emanations_fea))
-    embedded_feas = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=3).fit_transform(conc_feas)
+    embedded_feas = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=5).fit_transform(conc_feas)
     
     # scatter plot
-    plt.scatter(embedded_feas[:0], embedded_feas[:1])
-    plt.savefig('tsne.png', bbox_inches='tight')
-    plt.close()
+    customColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
+'#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8',
+'#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000']
+    uniq_labels = set()
+    for i in range(embedded_feas.shape[0]):
+        state = states[int(i / 10)]
+        plt.scatter(embedded_feas[i][0], embedded_feas[i][1], color=customColors[int(i / 10)], label=state if state not in uniq_labels else "")
+        uniq_labels.add(state)
+    plt.legend(loc='best')
+    # plt.savefig('tsne.png', bbox_inches='tight')
+    plt.show()

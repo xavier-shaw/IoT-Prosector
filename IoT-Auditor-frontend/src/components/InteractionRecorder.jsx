@@ -68,7 +68,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
         if (recording !== "") {
             setTimeout(() => {
                 endRecording();
-            }, 5000);
+            }, 5300);
         }
     }, [recording])
 
