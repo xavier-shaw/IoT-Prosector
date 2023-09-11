@@ -1,9 +1,11 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import * as d3 from "d3";
 import "./CollagePanel.css";
-import { Button, Grid, Skeleton } from "@mui/material";
+import { Button, Divider, Grid, Skeleton } from "@mui/material";
 import axios from "axios";
-import { customColors, noneColor, siblingColor, stateColor } from "../shared/chartStyle";
+import { colorPalette, customColors, noneColor, siblingColor, stateColor } from "../shared/chartStyle";
+import 'svg2pdf.js'
+import { jsPDF } from "jspdf";
 
 const CollagePanel = forwardRef((props, ref) => {
     let { board, chart, chartSelection, showHints, hideHints } = props;
@@ -15,10 +17,10 @@ const CollagePanel = forwardRef((props, ref) => {
     const [figure, setFigure] = useState("correlation matrix");
     const [classificationData, setClassificationData] = useState({});
     const [hint, setHint] = useState("");
-    const graphWidth = 670;
-    const graphHeight = 500;
-    const videoWidth = 190;
-    const videoHeight = 190;
+    const graphWidth = 700;
+    const graphHeight = 540;
+    const videoWidth = 180;
+    const videoHeight = 180;
 
     useImperativeHandle(ref, () => ({
         classifyStates,
@@ -30,12 +32,13 @@ const CollagePanel = forwardRef((props, ref) => {
                 hideHints(selectedNode, "all");
                 setHint("");
             }
+            console.log("selected node", chartSelection)
             let node_id = chartSelection.id;
             let prev_id = chartSelection.data.prev;
             let curNode = chart.nodes.find((e) => e.id === node_id);
             setSelectedNode(curNode);
             setVideoById(node_id, setSelectedNodeVideo);
-            if (prev_id) {
+            if (prev_id && curNode.data.status !== "base state") {
                 let prevNode = chart.nodes.find((e) => e.id === prev_id);
                 setPrevNode(prevNode);
                 setVideoById(prev_id, setPrevNodeVideo);
@@ -74,6 +77,7 @@ const CollagePanel = forwardRef((props, ref) => {
     }
 
     const classifyStates = (nodes) => {
+        console.log("classify", nodes)
         axios
             .post(window.HARDWARE_ADDRESS + "/classification", {
                 device: board.title,
@@ -87,7 +91,7 @@ const CollagePanel = forwardRef((props, ref) => {
                     dataPoints: resp.data.data_points,
                     dataLabels: resp.data.data_labels
                 }
-
+                console.log("classification result", classificationData)
                 let node = nodes.find((n) => n.id === selectedNode?.id);
                 setSelectedNode(node);
 
@@ -103,31 +107,44 @@ const CollagePanel = forwardRef((props, ref) => {
 
     // ============================= correlation matrix ================================
     const drawCorrelationMatrix = (classificationData) => {
-        let matrixOffset = 10;
-        let labelOffset = 5;
-        let labelRotate = -20;
-        let legendOffsetX = 20;
+        let matrixOffset = 8;
+        let labelOffset = 10;
+        let labelRotate = -30;
+        let legendOffsetX = 5;
         let legendOffsetY = 0;
         let legendWidth = 15;
-        let margin = 80;
-        let offsetX = 150;
+        let legendTickWidth = 40;
+        let margin = 150;
+        let offsetX = 120;
         let offsetY = matrixOffset;
-        let legendHeight = graphHeight - offsetY - margin;
+        let matrixWidth = graphWidth - offsetX - legendWidth - legendOffsetX - legendTickWidth;
+        let matrixHeight = graphHeight - offsetY - margin;
 
         document.getElementById("graph-panel").innerHTML = "";
         let svg = d3.select("#graph-panel").append("svg")
+            .attr("id", "svg")
             .attr("width", graphWidth)
             .attr("height", graphHeight);
 
-        // svg.append("text")
-        //     .attr("x", graphWidth / 2)
-        //     .attr("y", accuracyOffset)
-        //     .attr("font-size", 20)
-        //     .style("text-anchor", "middle")
-        //     .text("Average Accuracy: " + classificationData.accuracy);
+        svg.append("text")
+            .style("font-size", 22)
+            .style("font-family", "Times New Roman")
+            .style("text-anchor", "middle")
+            .text("Sensing Model")
+            .attr("transform", "translate(" + 15 + ", " + (offsetY + matrixHeight / 2) + ") rotate(-90)")
 
-        let cellWidth = graphWidth - legendWidth - offsetX
-        let cellHeight = legendHeight / classificationData.matrix.length;
+        svg.append("text")
+            .attr("x", offsetX + matrixWidth / 2)
+            .attr("y", graphHeight - 10)
+            .style("font-size", 22)
+            .style("font-family", "Times New Roman")
+            .style("text-anchor", "middle")
+            .text("Mental Model")
+            // .style("writing-mode", "tb")
+            // .style("glyph-orientation-vertical", 90)
+
+        let cellWidth = matrixWidth / classificationData.matrix[0].length;
+        let cellHeight = matrixHeight / classificationData.matrix.length;
         let colorScale = d3.scaleLinear()
             .domain([0, 0.5, 1])
             .range(["#FFFFDD", "#3E9583", "#1F2D86"])
@@ -141,7 +158,7 @@ const CollagePanel = forwardRef((props, ref) => {
             .selectAll('rect')
             .data(d => d)
             .enter().append('rect')
-            .attr('x', (d, i) => i * cellHeight)
+            .attr('x', (d, i) => i * cellWidth)
             .attr('y', (d, i) => 0)
             .attr('width', cellWidth)
             .attr('height', cellHeight)
@@ -157,10 +174,11 @@ const CollagePanel = forwardRef((props, ref) => {
             .selectAll('.state-text')
             .data(d => d)
             .enter().append('text')
-            .attr('x', (d, i) => i * cellHeight + cellHeight / 2)
+            .attr('x', (d, i) => i * cellWidth + cellWidth / 2)
             .attr('y', (d, i) => cellHeight / 2)
             .attr('text-anchor', 'middle')
-            .attr('font-size', 12)
+            .style("font-size", 20)
+            .style("font-family", "Times New Roman")
             .attr('dy', '.35em')
             .text(d => d);
 
@@ -173,23 +191,25 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("y", (d, i) => offsetY + i * cellHeight + cellHeight / 2)
             .attr("alignment-baseline", "middle")
             .attr("text-anchor", "end")
-            .attr("font-size", 16)
+            .style("font-size", 20)
+            .style("font-family", "Times New Roman")
 
         svg.selectAll('.groups')
             .data(classificationData.groups)
             .enter()
             .append('text')
             .text((d) => d)
-            .attr("x", (d, i) => offsetX + i * cellWidth + cellWidth / 2)
-            .attr("y", offsetY + legendHeight + labelOffset + 10)
+            .attr("x", (d, i) => offsetX + i * cellWidth + cellWidth / 2 + 10)
+            .attr("y", offsetY + matrixHeight + labelOffset + 5)
             .attr("text-anchor", "end")
-            .attr("font-size", 16)
-            .attr("transform", (d, i) => "rotate(" + labelRotate + " " + (offsetX + i * cellWidth + cellWidth / 2) + " " + (offsetY + legendHeight + labelOffset + 10) + ")")
+            .style("font-size", 20)
+            .style("font-family", "Times New Roman")
+            .attr("transform", (d, i) => "rotate(" + labelRotate + " " + (offsetX + i * cellWidth + cellWidth / 2) + " " + (offsetY + matrixHeight + labelOffset + 10) + ")")
 
         //Calculate the variables for gradient
         var gradientScale = d3.scaleLinear()
             .domain([0, 1])
-            .range([0, legendHeight])
+            .range([0, matrixHeight])
         var numStops = 10;
         var gradientPoints = [];
         for (var i = 0; i < numStops; i++) {
@@ -206,26 +226,26 @@ const CollagePanel = forwardRef((props, ref) => {
             .data(d3.range(numStops))
             .enter().append("stop")
             .attr("offset", function (d, i) {
-                return gradientScale(gradientPoints[i]) / legendHeight;
+                return gradientScale(gradientPoints[i]) / matrixHeight;
             })
             .attr("stop-color", function (d, i) {
                 return colorScale(gradientPoints[i]);
             });
 
         var legendsvg = svg.append("g")
-            .attr("transform", "translate(" + (offsetX + legendHeight + legendOffsetX) + "," + (offsetY + legendOffsetY) + ")");
+            .attr("transform", "translate(" + (offsetX + matrixWidth + legendOffsetX) + "," + (offsetY + legendOffsetY) + ")");
 
         //Draw the Rectangle
         legendsvg.append("rect")
             .attr("x", 0)
             .attr("y", 0)
             .attr("width", legendWidth)
-            .attr("height", legendHeight)
+            .attr("height", matrixHeight)
             .style("fill", "url(#legend-traffic)");
 
         //Set scale for x-axis
         var xScale = d3.scaleLinear()
-            .range([0, legendHeight])
+            .range([0, matrixHeight])
             .domain([1, 0]);
 
         //Define x-axis
@@ -234,62 +254,98 @@ const CollagePanel = forwardRef((props, ref) => {
 
         legendsvg.append("g")
             .attr("transform", "translate(" + legendWidth + ",0)")
-            .call(xAxis);
+            .call(xAxis)
+            .selectAll(".tick text")
+            .style("font-size", 20)
+            .style("font-family", "Times New Roman")
     };
 
     // ============================= Scatterplot ================================
     const drawScatterplot = (classificationData, nodes, selectedNode) => {
         let data = classificationData.dataPoints;
         let labels = classificationData.dataLabels;
-        let margin = 5;
-        let cubeSize = 15;
-        let seqSize = 30;
-        let graphOffsetX = 20;
-        let graphOffsetY = 30;
+        let margin = 10;
+        let cubeSize = 10;
+        let legendMargin = 6;
+        let graphOffsetX = 25;
+        let graphOffsetY = 40;
 
         document.getElementById("graph-panel").innerHTML = "";
         let svg = d3.select("#graph-panel").append("svg")
+            .attr("id", "svg")
             .attr("width", graphWidth)
             .attr("height", graphHeight);
 
-        let stateNodes = nodes.filter((n) => n.type === "stateNode");
+        let parentNodes = nodes.filter((n) => !n.parentNode);
 
         const color = d3.scaleOrdinal()
-            .domain(stateNodes.map(d => d.id))
-            .range(customColors);
+            .domain(nodes.map(d => d.id))
+            .range(colorPalette);
         
         let legend = svg.append("g")
-            .attr("transform", `translate(${margin}, ${margin})`)
-        legend
-            .selectAll("rect")
-            .data(stateNodes)
-            .join("rect")
+            .attr("transform", `translate(${0}, ${margin})`)
+
+        // Calculate the total width of legend items and labels
+        const legendItems = legend
+            .selectAll(".legend-item")
+            .data(parentNodes)
+            .enter()
+            .append("g")
+            .attr("class", "legend-item");
+
+        legendItems
+            .append("rect")
             .attr("fill", d => color(d.id))
             .attr("width", cubeSize)
             .attr("height", cubeSize)
-            .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize)}, 0)`)
-        legend
-            .selectAll("text")
-            .data(stateNodes)
-            .join("text")
-            .text(d => d.data.label.slice(0, 3).trim())
-            .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize) + cubeSize}, 13)`)
+            // .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize)}, 0)`);
+
+        legendItems
+            .append("text")
+            .text(d => {
+                if (d.type === "stateNode") {
+                return d.data.label.split(" ")[0];
+                } else {
+                return d.data.label.split(" ")[1];
+                }
+            })
+            .style("font-size", 20)
+            .style("font-family", "Times New Roman")
+            .attr("transform", `translate(${cubeSize}, 10)`);
+
+
+        // Calculate the total width of legend items and labels
+        // Adjust the position of each label to prevent overlap
+        let xOffset = 0;
+        let yOffset = 0;
+        const totalLegendWidth = legendItems.nodes().reduce((totalWidth, node) => {
+            const bbox = node.querySelector('text').getBBox();
+            d3.select(node).attr("transform", `translate(${xOffset}, ${yOffset})`)
+            xOffset += bbox.width + cubeSize + legendMargin;
+        }, 0);
+            
 
         let xScaler = d3.scaleLinear()
-            .domain([d3.min(data, d => d.x), d3.max(data, d => d.x)])
+            .domain([d3.min(data, d => d[0]), d3.max(data, d => d[0])])
             .range([graphOffsetX, graphWidth - graphOffsetX]);
 
         let yScaler = d3.scaleLinear()
-            .domain([d3.min(data, d => d.y), d3.max(data, d => d.y)])
+            .domain([d3.min(data, d => d[1]), d3.max(data, d => d[1])])
             .range([graphOffsetY, graphHeight - graphOffsetY]);
 
         svg.append("g")
-            .attr("transform", `translate(0,${graphHeight / 2 - graphOffsetY})`)
+            .attr("transform", `translate(0,${yScaler(0)})`)
             .call(d3.axisBottom(xScaler))
+            .selectAll(".tick text")
+            .style("font-size", 20)
+            .style("font-family", "Times New Roman")
 
         svg.append("g")
-            .attr("transform", `translate(${graphWidth / 2 - graphOffsetX},0)`)
+            .attr("transform", `translate(${xScaler(0)},0)`)
             .call(d3.axisLeft(yScaler))
+            .selectAll(".tick text")
+            .style("font-size", 20)
+            .style("font-family", "Times New Roman")
 
         if (selectedNode?.type === "stateNode") {
             svg.append("g")
@@ -316,7 +372,7 @@ const CollagePanel = forwardRef((props, ref) => {
                     }
                 })
                 .attr("transform", d => `translate(${xScaler(d[0])},${yScaler(d[1])})`)
-                .attr("r", 3);
+                .attr("r", 7);
         }
         else {
             svg.append("g")
@@ -324,9 +380,17 @@ const CollagePanel = forwardRef((props, ref) => {
                 .selectAll("circle")
                 .data(data)
                 .join("circle")
-                .attr("fill", (d, i) => color(labels[i]))
+                .attr("fill", (d, i) => {
+                    let node = nodes.find((n) => n.id === labels[i])
+                    if (node.parentNode) {
+                        return color(node.parentNode);
+                    }
+                    else {
+                        return color(labels[i]);
+                    }
+                })
                 .attr("transform", d => `translate(${xScaler(d[0])},${yScaler(d[1])})`)
-                .attr("r", 3);
+                .attr("r", 7);
         }
     };
 
@@ -362,43 +426,48 @@ const CollagePanel = forwardRef((props, ref) => {
         }
     };
 
+    const exportSVG = () => {
+        const element = document.getElementById("svg");
+        let svgString = new XMLSerializer().serializeToString(element);
+        var blob = new Blob([svgString], {type: "image/svg+xml;chartset=utf-8"});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = figure + ".svg";
+        a.click()
+    }
+
     return (
         <div className="collage-panel-div">
             <div className="select-panel">
-                <Button variant={figure === "correlation matrix" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("correlation matrix")}>
+                <Button size="small" variant={figure === "correlation matrix" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("correlation matrix")}>
                     Correlation Matrix
                 </Button>
-                <Button variant={figure === "distribution" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("distribution")}>
+                <Button size="small" variant={figure === "distribution" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("distribution")}>
                     Distribution Scatterplot
                 </Button>
+                <Button size="small" variant="outlined" onClick={exportSVG}>Export SVG</Button>
             </div>
             <div id="graph-panel">
                 <Skeleton className="m-auto" variant="rectangular" animation="wave" width={graphWidth} height={graphHeight} />
             </div>
 
-            <h4>State Information</h4>
-            <div className="d-flex justify-content-evenly">
-                <Button variant={hint === "semantic" ? "contained" : "outlined"} color={hint === "semantic" ? "success" : "primary"}
-                    disabled={hint === "data" || !selectedNode} size="small" onClick={handleShowSemanticHints}>
-                    Semantic Hint
-                </Button>
-                <Button variant={hint === "data" ? "contained" : "outlined"} color={hint === "data" ? "success" : "primary"}
-                    disabled={hint === "semantic" || !selectedNode} size="small" onClick={handleShowDataHints}>
-                    Data Hint
-                </Button>
-            </div>
+            <Divider className="mt-3">
+                <h5>State Information</h5>
+                </Divider>
+            
             <div className="state-info-div">
                 {prevNode && prevNodeVideo && selectedNode &&
                     <div>
-                        <h5>Previous State</h5>
-                        <h6>{prevNode.data.label}</h6>
+                        <h6 style={{marginBottom: "5px"}}>Previous State</h6>
+                        <p style={{marginBottom: "5px"}}>{prevNode.data.label}</p>
                         <video src={prevNodeVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
                 {prevNode && actionVideo && selectedNode &&
                     <div>
-                        <h5>Action</h5>
-                        <h6>{selectedNode.data.action}</h6>
+                        <h6 style={{marginBottom: "5px"}}>Action</h6>
+                        <p style={{marginBottom: "5px"}}>{selectedNode.data.action}</p>
                         <video src={actionVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
@@ -410,8 +479,8 @@ const CollagePanel = forwardRef((props, ref) => {
                 }
                 {selectedNode && selectedNodeVideo &&
                     <div>
-                        <h5>Current State</h5>
-                        <h6>{selectedNode.data.label}</h6>
+                        <h6 style={{marginBottom: "5px"}}>Current State</h6>
+                        <p style={{marginBottom: "5px"}}>{selectedNode.data.label}</p>
                         <video src={selectedNodeVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }

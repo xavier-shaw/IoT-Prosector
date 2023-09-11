@@ -10,7 +10,7 @@ export const stateNodeStyle = {
     borderStyle: "solid",
     padding: "10px",
     borderRadius: "10px",
-    backgroundColor: "#F7E2E1",
+    backgroundColor: "white",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -95,7 +95,7 @@ export const highlightColor = "lightyellow";
 
 export const stateColor = "blue";
 export const siblingColor = "skyblue";
-export const noneColor = "lightgrey";
+export const noneColor = "black";
 
 export const selectedColor = "#4361ee";
 
@@ -103,10 +103,15 @@ export const customColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f5823
 '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8',
 '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000'];
 
-// export const customColors = [
-//     "#001219", "#005F73", "#0A9396", "#94D2BD", "#E9D8A6", "#EE9B00", "#CA6702", "#BB3E03", "#AE2012", "#9B2226",
-//     "#582F0E", "#936639", "#A4AC86", "#656D4A", "#414833", "#023e8a", "#0096c7", "#ef476f", "#7b2cbf", "#4d908e"
-// ]
+export const colorPalette = [
+    "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
+    "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#9edae5", "#dbdb8d", 
+    "#c7c7c7", "#c49c94", "#f7b6d2", "#c5b0d5", "#aec7e8", "#ffbb78",
+    "#98df8a", "#ff9896", "#fdd0a2", "#dadaeb", "#c7dbd2", "#b0e57c",
+    "#ff9896", "#9edae5", "#c5d0e6", "#fbebd6", "#fdae6b", "#e6550d",
+    "#fdae6b", "#a1d99b", "#e7ba52", "#6baed6", "#637939", "#8ca252"
+  ];
+  
 
 export const displayHandleMargin = 5;
 export const displayHandleOffset = 40;

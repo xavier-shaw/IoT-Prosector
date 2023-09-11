@@ -12,13 +12,14 @@ import { MarkerType } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
 import "./NodeChart.css";
 import 'reactflow/dist/style.css';
-import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors, stateZIndex } from "../shared/chartStyle";
+import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors, stateZIndex, colorPalette } from "../shared/chartStyle";
 import axios from "axios";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import DisplayNode from "./DisplayNode";
 import DisplayEdge from "./DisplayEdge";
 import FloatingEdge from "./FloatingEdge";
 import FloatingConnectionLine from "./FloatingConnectionLine";
+import * as htmlToImage from 'html-to-image'
 
 const NodeChart = forwardRef((props, ref) => {
     return (
@@ -96,10 +97,10 @@ const FlowChart = forwardRef((props, ref) => {
             .then((resp) => {
                 let action_group_count = resp.data.action_group_count;
                 let action_collage_dict = resp.data.action_collage_dict;
-                let semantic_group_cnt = resp.data.semantic_group_cnt;
-                let semantic_collage_dict = resp.data.semantic_collage_dict;
-                let combined_group_cnt = resp.data.combined_group_cnt;
-                let combined_collage_dict = resp.data.combined_collage_dict;
+                // let semantic_group_cnt = resp.data.semantic_group_cnt;
+                // let semantic_collage_dict = resp.data.semantic_collage_dict;
+                // let combined_group_cnt = resp.data.combined_group_cnt;
+                // let combined_collage_dict = resp.data.combined_collage_dict;
 
                 let newNodes = [...nodes];
                 let newEdges = [...edges];
@@ -112,11 +113,12 @@ const FlowChart = forwardRef((props, ref) => {
 
                 for (let index = 0; index < action_group_count; index++) {
                     let semanticNode = createNewNode({ x: semanticNodeMarginX + semanticNodeOffsetX * index, y: semanticNodeMarginY }, "semanticNode");
-                    semanticNode.data.label += " " + index;
+                    semanticNode.data.label = "Group (";
                     for (const [nid, cid] of Object.entries(action_collage_dict)) {
                         if (cid === index) {
                             let node = newNodes.find((n) => n.id === nid);
                             semanticNode.data.children.push(node.id);
+                            semanticNode.data.label += node.data.label.split(" ")[0] + ",";
                             node.parentNode = semanticNode.id;
                             node.position = { x: childNodeoffsetX, y: childNodeMarginY + (semanticNode.data.children.length - 1) * childNodeoffsetY };
                             node.positionAbsolute = {
@@ -125,6 +127,7 @@ const FlowChart = forwardRef((props, ref) => {
                             };
                         }
                     };
+                    semanticNode.data.label = semanticNode.data.label.slice(0, -1) + ")";
                     semanticNode.style = { ...semanticNode.style, height: changeHeight(newNodes, semanticNode) };
                     semanticNode.height = parseInt(semanticNode.style.height.slice(0, -2));
                     if (semanticNode.data.children.length == 1) {
@@ -136,33 +139,15 @@ const FlowChart = forwardRef((props, ref) => {
                     }
                 };
 
-                let semanticHints = {};
-                for (let index = 0; index < semantic_group_cnt; index++) {
-                    semanticHints[index] = [];
-                    for (const [nid, cid] of Object.entries(semantic_collage_dict)) {
-                        if (cid === index) {
-                            semanticHints[index].push(nid);
-                        }
-                    };
-                }
-
-                let dataHints = {};
-                for (let index = 0; index < combined_group_cnt; index++) {
-                    dataHints[index] = [];
-                    for (const [nid, cid] of Object.entries(combined_collage_dict)) {
-                        if (cid === index) {
-                            dataHints[index].push(nid);
-                        }
-                    }
-                }
-
                 [newNodes, newEdges] = layout(newNodes, newEdges, false);
+                newNodes = updateGroups(newNodes);
                 newEdges = hiddenChildEdges(newNodes, newEdges);
                 updateMatrix(newNodes);
                 setChart((prevChart) => ({ ...prevChart, nodes: newNodes, edges: newEdges }));
+                setNodes(newNodes);
                 setEdges(newEdges);
-                setSemanticHints(semanticHints);
-                setDataHints(dataHints);
+                // setSemanticHints(semanticHints);
+                // setDataHints(dataHints);
                 setChartSelection(null);
                 console.log("collage nodes", newNodes);
                 console.log("collage edges", newEdges);
@@ -183,15 +168,15 @@ const FlowChart = forwardRef((props, ref) => {
 
     const onNodeClick = (evt, node) => {
         const color = d3.scaleOrdinal()
-            .domain(nodes.filter((n) => n.type === "stateNode").map(d => d.id))
-            .range(customColors);
+            .domain(nodes.map(d => d.id))
+            .range(colorPalette);
 
         let newNodes = [...nodes];
 
         if (chartSelection?.type === "stateNode") {
             newNodes = newNodes.map((n) => {
                 if (n.id === chartSelection.id) {
-                    n.style.backgroundColor = "#F7E2E1";
+                    n.style.backgroundColor = stateNodeStyle.backgroundColor;
                 }
 
                 return n;
@@ -263,15 +248,36 @@ const FlowChart = forwardRef((props, ref) => {
         return [newNodes, newEdges];
     };
 
-    const insideLayout = (nodes) => {
+    const updateGroups = (nodes) => {
+        const colors = d3.scaleOrdinal()
+            .domain(nodes.map(d => d.id))
+            .range(colorPalette);
+
         nodes = nodes.map((n) => {
-            if (!n.parentNode) {
+            if (n.type === "semanticNode") {
+                let label = "Group (";
+                for (const childId of n.data.children) {
+                    let child = nodes.find((n1) => n1.id === childId);
+                    child.position = { x: childNodeoffsetX, y: childNodeMarginY + n.data.children.indexOf(childId) * childNodeoffsetY };
+                    child.positionAbsolute = { x: n.positionAbsolute.x + child.position.x, y: n.positionAbsolute.y + child.position.y };
+                    label += child.data.label.split(" ")[0] + ",";
+                }
+                label = label.slice(0, -1) + ")";
+                n.data.label = label;
+                n.style = {...n.style, backgroundColor: colors(n.id)};
                 return n;
             }
-            else {
-                let parent = nodes.find((nd) => nd.id === n.parentNode);
-                n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
-                n.positionAbsolute = { x: parent.positionAbsolute.x + n.position.x, y: parent.positionAbsolute.y + n.position.y };
+            else if (n.type === "stateNode") {
+                if (n.parentNode && n.id !== chartSelection?.id) {
+                    n.style = {...n.style, backgroundColor: stateNodeStyle.backgroundColor};
+                }
+                else {
+                    n.style = {...n.style, backgroundColor: colors(n.id)}
+                }
+                // let parent = nodes.find((nd) => nd.id === n.parentNode);
+                // n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
+                // n.positionAbsolute = { x: parent.positionAbsolute.x + n.position.x, y: parent.positionAbsolute.y + n.position.y };
+                
                 return n;
             }
         });
@@ -349,16 +355,11 @@ const FlowChart = forwardRef((props, ref) => {
         for (const node of nodes) {
             if (!node.parentNode) {
                 let label = "";
-                console.log(node)
                 if (node.data.representative) {
                     label = node.data.representative;
                 }
                 else {
-                    for (const childId of node.data.children) {
-                        let child = nodes.find((n) => n.id === childId);
-                        label += child.data.label.split(" ")[0] + ", ";
-                    }
-                    label = label.slice(0, -2);
+                    label = node.data.label;
                 };
 
                 let newNode = { ...node, data: { ...node.data, representative: label }, style: displayNodeStyle };
@@ -536,7 +537,7 @@ const FlowChart = forwardRef((props, ref) => {
             newNodes = newNodes.filter((n) => !n.data.children || n.data.children?.length > 0);
         }
 
-        newNodes = insideLayout(newNodes);
+        newNodes = updateGroups(newNodes);
         newEdges = hiddenChildEdges(newNodes, newEdges);
         if (needUpdate) {
             updateMatrix(newNodes);
@@ -564,7 +565,7 @@ const FlowChart = forwardRef((props, ref) => {
         parent.data.children = parent.data.children.filter((c) => c !== representNode.id);
         parent.data.children.unshift(representNode.id);
         
-        newNodes = insideLayout(newNodes);
+        newNodes = updateGroups(newNodes);
         let newEdges = hiddenChildEdges(newNodes, edges);
         setNodes(newNodes);
         setEdges(newEdges);
@@ -618,26 +619,29 @@ const FlowChart = forwardRef((props, ref) => {
     };
 
     useEffect(() => {
-        setNodes((nodes) =>
-            nodes.map((node) => {
-                if (node.id === target?.id) {
-                    node.style = { ...node.style, backgroundColor: highlightColor };
-                } else {
-                    let color;
-                    switch (node.type) {
-                        case "semanticNode":
-                            color = semanticNodeStyle.backgroundColor;
-                            break;
-                        default:
-                            color = stateNodeStyle.backgroundColor;
-                            break;
-                    }
-                    node.style = { ...node.style, backgroundColor: color };
-                }
+            const colors = d3.scaleOrdinal()
+            .domain(nodes.map(d => d.id))
+            .range(colorPalette);
 
-                return node;
-            })
-        );
+            setNodes((nodes) =>
+                nodes.map((node) => {
+                    if (node.id === target?.id) {
+                        node.style = { ...node.style, backgroundColor: highlightColor };
+                    } else {
+                        let color;
+                        if (!node.parentNode || node.id === chartSelection?.id) {
+                            color = colors(node.id);
+                        }
+                        else{
+                            color = stateNodeStyle.backgroundColor;
+                        }
+                        node.style = { ...node.style, backgroundColor: color };
+                    }
+
+                    return node;
+                })
+            );   
+        
     }, [target]);
 
     const onDragStart = (event, nodeType) => {
@@ -645,10 +649,78 @@ const FlowChart = forwardRef((props, ref) => {
         event.dataTransfer.effectAllowed = 'move';
     };
 
+    async function exportDiagram() {
+        try {
+            // Get the DOM element
+            let elements = document.getElementsByClassName('flow')[0];
+            // Convert to SVG
+            const svgContent = await htmlToImage.toSvg(elements);
+            const svgElement = decodeURIComponent(svgContent.replace("data:image/svg+xml;charset=utf-8,", "").trim());
+            // Open new window
+            const newWindow = open();
+            // Safer version of document.write
+            document.write=function(s){
+                var scripts = document.getElementsByTagName('script');
+                var lastScript = scripts[scripts.length-1];
+                lastScript.insertAdjacentHTML("beforebegin", s);
+            }
+            // Write our page content to the newly opened page
+            newWindow.document.write(
+                `<html>
+                    <head>
+                        <title>React Flow PDF</title>
+                        <style>
+                            body {
+                                width: ${"1200px"};
+                                height: ${"1000px"};
+                                margin: auto
+                            }
+                            .container {
+                                background: #393D43;
+                                text-align: center;
+                                height: 100%;
+                                width: 100%;
+                            }
+                            
+                            @page {
+                                size: 29.7cm, 21cm
+                                margin:0 !important;
+                            }
+                            @media print {
+                                * {
+                                    -webkit-print-color-adjust: exact !important;
+                                    color-adjust: exact !important;
+                                }
+                                .container {
+                                    background: none;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class='container'>
+                            <div class='svg-container'>
+                                ${svgElement}
+                            </div>
+                            
+                            <script>
+                                document.close();
+                                window.print();
+                            </script>
+                        </div>
+                    </body>
+                </html>`
+            )
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
     return (
         <div style={{ width: '100%', height: '100%', backgroundColor: "white" }} ref={reactFlowWrapper}>
             {step === 0 &&
                 <ReactFlow
+                    className="flow"
                     nodeTypes={nodeTypes_explore}
                     edgeTypes={edgeTypes_explore}
                     nodes={nodes}
@@ -661,6 +733,7 @@ const FlowChart = forwardRef((props, ref) => {
                 >
                     <Panel position="top-right">
                         <button onClick={() => onLayout(nodes, edges)}>Layout</button>
+                        <button onClick={exportDiagram}>Export</button>
                     </Panel>
                     <Background />
                     <Controls />
@@ -668,6 +741,7 @@ const FlowChart = forwardRef((props, ref) => {
             }
             {step === 1 && !preview &&
                 <ReactFlow
+                    className="flow"
                     nodeTypes={nodeTypes_annotate}
                     edgeTypes={edgeTypes_annotate}
                     nodes={nodes}
@@ -687,6 +761,7 @@ const FlowChart = forwardRef((props, ref) => {
                 >
                     <Panel position="top-right">
                         <button onClick={() => onLayout(nodes, edges)}>Layout</button>
+                        <button onClick={exportDiagram}>Export</button>
                         <div className='mode-node-div' onDragStart={(event) => onDragStart(event, 'semanticNode')} draggable>
                             State Group
                         </div>
@@ -697,6 +772,7 @@ const FlowChart = forwardRef((props, ref) => {
             }
             {(step === 2 || preview === true) &&
                 <ReactFlow
+                    className="flow"
                     nodeTypes={nodeTypes_verify}
                     edgeTypes={edgeTypes_verify}
                     nodes={displayNodes}
@@ -706,6 +782,10 @@ const FlowChart = forwardRef((props, ref) => {
                     onInit={setReactFlowInstance}
                     fitView
                 >
+                    <Panel position="top-right">
+                        {/* <button onClick={() => onLayout(nodes, edges)}>Layout</button> */}
+                        <button onClick={exportDiagram}>Export</button>
+                    </Panel>
                     <Background />
                     <Controls />
                 </ReactFlow>

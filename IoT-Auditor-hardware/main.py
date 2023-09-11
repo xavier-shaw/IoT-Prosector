@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import asyncio
 from concurrent.futures.process import ProcessPoolExecutor
-from typing import List
+from typing import List, Dict
 from dotenv import dotenv_values
 from pymongo import MongoClient
 from urllib.parse import quote_plus
@@ -227,9 +227,24 @@ class DataModel(BaseModel):
     device: str
     nodes: List[dict]
 
+class ProcessedDataModel(BaseModel):
+    tsne_data_labels: List[str]
+    tsne_data_points: List[List[float]]
+    state_cluster_dict: Dict[str, List[int]] 
+    cluster_cnt: int
+
+@app.post("/loadProcessedData")
+async def load_processed_data(data: ProcessedDataModel = Body(...)):
+    global tsne_data_points, tsne_data_labels, state_cluster_dict, cluster_cnt
+    tsne_data_points = data.tsne_data_points
+    tsne_data_labels = data.tsne_data_labels
+    state_cluster_dict = data.state_cluster_dict
+    cluster_cnt = data.cluster_cnt
+
+    return {"message": "data are loaded"}
 
 @app.post("/waitForDataProcessing")
-async def waitForProcessing(data: DataModel = Body(...)):
+async def wait_for_data_processing(data: DataModel = Body(...)):
     global processes, finished_processes 
     while len(finished_processes) != len(processes):
         time.sleep(1)
@@ -237,14 +252,9 @@ async def waitForProcessing(data: DataModel = Body(...)):
     finished_processes = []
     processes = []
 
-    data_model_hints, group_idx = process_data(data.device, data.nodes)
+    resp = process_data(data.device, data.nodes)
 
-    resp = {
-        "data_model_group_cnt": group_idx,
-        "data_model_hints": data_model_hints
-    }
-
-    return JSONResponse(content=jsonable_encoder(resp))
+    return JSONResponse(jsonable_encoder(resp))
 
 
 def process_data(device, nodes):
@@ -263,16 +273,22 @@ def process_data(device, nodes):
     tsne_data_points = features
     tsne_data_labels = states_labels
 
-    state_distribution_dict = cluster_states(features, states_labels)
+    state_distribution_dict, best_cluster_number = cluster_states(features, states_labels)
     # data_model_hints: a dictionary that shows which data-oriented cluster the state is belonged to => hints[state_id] = cluster_id
-    data_model_hints, group_idx = generate_collage_node(
-        state_distribution_dict)
+    # data_model_hints, group_idx = generate_collage_node(
+    #     state_distribution_dict)
 
-    state_cluster_dict = data_model_hints
-    cluster_cnt = group_idx
+    state_cluster_dict = state_distribution_dict
+    cluster_cnt = best_cluster_number
 
-    return data_model_hints, group_idx
+    resp = {
+        "tsne_data_labels": tsne_data_labels,
+        "tsne_data_points": tsne_data_points,
+        "state_cluster_dict": state_cluster_dict,
+        "cluster_cnt": cluster_cnt
+    }
 
+    return resp
 
 @app.post("/collage")
 async def action_collage(data: DataModel = Body(...)):
@@ -292,7 +308,7 @@ def get_state_group_info(nodes):
 
     for node in nodes:
         node_id = node["id"]
-        if node["parentNode"]:
+        if "parentNode" in node and node["parentNode"]:
             state_group_info[node_id] = node["parentNode"]
         else:
             state_group_info[node_id] = node_id
@@ -303,7 +319,7 @@ def get_state_group_info(nodes):
 
 @app.post("/classification")
 async def classfication(data: DataModel = Body(...)):
-    global classifier, labels, data_points, tsne_data_points, state_cluster_dict, cluster_cnt
+    global tsne_data_points, state_cluster_dict, cluster_cnt
     # To show the cohesion level inside each group and coupling level between different groups
     # X: tsne_data_points (20 * num_of_states)
     # Y: group_labels   
@@ -311,24 +327,25 @@ async def classfication(data: DataModel = Body(...)):
     state_group_info, parent_node_ids = get_state_group_info(data.nodes)
     
     corr_matrix = np.zeros((cluster_cnt, len(parent_node_ids)))
-    for state_id in tsne_data_labels:
-        group_id = state_group_info[state_id]
-        cluster_label = state_cluster_dict[state_id]
-        corr_matrix[parent_node_ids.index(group_id), cluster_label] += 1
+    for state_id, group_id in state_group_info.items():
+        if state_id in state_cluster_dict:
+            cluster_distribution = state_cluster_dict[state_id]
+            corr_matrix[:, parent_node_ids.index(group_id)] += cluster_distribution
 
-    row_sums = corr_matrix.sum(axis=1).reshape(-1, 1)
-    corr_matrix /= row_sums
+    col_sums = corr_matrix.sum(axis=0)
+    corr_matrix /= col_sums
     corr_matrix = np.around(corr_matrix, 2)
 
-    clusters = [("#" + i) for i in range(cluster_cnt)]
+    clusters = [("Cluster " + str(i)) for i in range(cluster_cnt)]
     groups = [node["data"]["label"] for node in data.nodes if node["id"] in parent_node_ids]
     resp = {
-        "matrix": corr_matrix,
+        "matrix": corr_matrix.tolist(),
         "clusters": clusters,
         "groups": groups,
         "data_points": tsne_data_points,
         "data_labels": tsne_data_labels
     }
+
     return JSONResponse(content=jsonable_encoder(resp))
 
 
@@ -386,7 +403,6 @@ def action_match(nodes):
 
 
 def get_all_raw_data(device, nodes):
-    global state_group_info
     power_datas = []
     emanation_datas = []
     states_info = []
@@ -398,7 +414,6 @@ def get_all_raw_data(device, nodes):
         power_datas.append(avg_currents)
         emanation_datas.append(emanation_data)
         states_info.append(node["id"])
-        state_group_info[node["id"]] = node["id"]
 
     # return labels, collected_nodes, X, Y, Y_true
     return power_datas, emanation_datas, states_info
@@ -510,7 +525,7 @@ def get_emanation_data(device, state_idx):
 
 def get_power_data(device, state_idx):
     data = app.database["iotdatas"].find_one(
-        {"device": device, "idx": state_idx + "-power"})
+        {"idx": state_idx + "-power"})
     avg_currents = data["avg_currents"]
     max_currents = data["max_currents"]
     min_currents = data["min_currents"]
@@ -551,8 +566,9 @@ def classify(states, X, Y):
     return clf, avg_cm, avg_accuracy
 
 
-def generate_collage_node(distribution_dict, node_collage_dict):
+def generate_collage_node(distribution_dict):
     cluster_map = {}
+    node_collage_dict = {}
     group_idx = 0
     for state, clusters in distribution_dict.items():
         cluster = int(np.argmax(clusters))
@@ -565,10 +581,10 @@ def generate_collage_node(distribution_dict, node_collage_dict):
 
 
 def cluster_states(X, Y):
-    num_of_states = len(set(Y))
+    true_labels = set(Y)
 
     # Silhouette Score
-    clusters_nums = [i for i in range(2, num_of_states + 1)]
+    clusters_nums = [i for i in range(2, len(true_labels) + 1)]
     sil = []
     for i in clusters_nums:  # Silhouette score is defined only for more than 1 cluster
         kmeans = KMeans(n_clusters=i, init='k-means++',
@@ -590,14 +606,14 @@ def cluster_states(X, Y):
                     init='k-means++', max_iter=300, n_init=10, random_state=42)
     kpred = kmeans.fit_predict(X)
 
-    distribution_dict = {l: [0 for i in range(
-        best_cluster_number)] for l in range(num_of_states)}
+    distribution_dict = {label: [0 for i in range(
+        best_cluster_number)] for label in true_labels}
     for i in range(len(Y)):
         true_label = Y[i]
         pred_label = kpred[i]
         distribution_dict[true_label][pred_label] += 1
 
-    return distribution_dict
+    return distribution_dict, best_cluster_number
 
 
 def build_semantic_dataset(node_collage_dict, ids, X, Y, new_X, new_Y):

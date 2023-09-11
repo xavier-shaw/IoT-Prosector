@@ -60,15 +60,36 @@ export default function Board(props) {
         if (step === 0) {
             setWaitForProcessing(true);
             let newChart = nodeChartRef.current.updateAnnotation();
-
-            axios.post(window.HARDWARE_ADDRESS + "/waitForDataProcessing", {
-                device: board.title,
-                nodes: newChart.nodes
-            })
+            if (!board.data.processed) {
+                axios.post(window.HARDWARE_ADDRESS + "/waitForDataProcessing", {
+                    device: board.title,
+                    nodes: newChart.nodes
+                })
+                    .then((resp) => {
+                        let newBoard = { ...board };
+                        newBoard.data = {
+                            ...newBoard.data,
+                            tsne_data_labels: resp.data.tsne_data_labels,
+                            tsne_data_points: resp.data.tsne_data_points,
+                            state_cluster_dict: resp.data.state_cluster_dict,
+                            cluster_cnt: resp.data.cluster_cnt,
+                            processed: true
+                        }
+                        setBoard(newBoard);
+                        setFinishProcess(true);
+                    })
+            }
+            else {
+                axios.post(window.HARDWARE_ADDRESS + "/loadProcessedData", {
+                    tsne_data_labels: board.data.tsne_data_labels,
+                    tsne_data_points: board.data.tsne_data_points,
+                    state_cluster_dict: board.data.state_cluster_dict,
+                    cluster_cnt: board.data.cluster_cnt,
+                })
                 .then((resp) => {
-                    console.log(resp);
                     setFinishProcess(true);
                 })
+            }
         }
         else {
             setStep((prevStep) => (prevStep + 1));
