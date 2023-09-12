@@ -16,6 +16,7 @@ import InteractionRecorder from "../components/InteractionRecorder";
 import CollagePanel from "../components/CollagePanel";
 import { childNodeoffsetY, edgeZIndex, nodeOffsetX, nodeOffsetY, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, stateZIndex } from "../shared/chartStyle";
 import { MarkerType } from "reactflow";
+import VerificatopmPanel from "../components/VerificationPanel";
 
 export default function Board(props) {
     let params = useParams();
@@ -32,9 +33,11 @@ export default function Board(props) {
     const [openDialog, setOpenDiaglog] = useState(false);
     const [waitForProcessing, setWaitForProcessing] = useState(false);
     const [finishProcess, setFinishProcess] = useState(false);
+    const [predictState, setPredictState] = useState(null);
     const nodeChartRef = useRef(null);
     const collagePanelRef = useRef(null);
     const interactionRecorderRef = useRef(null);
+    const verificationPanelRef = useRef(null);
 
     useEffect(() => {
         axios
@@ -91,8 +94,19 @@ export default function Board(props) {
                 })
             }
         }
-        else {
-            setStep((prevStep) => (prevStep + 1));
+        else if (step === 1) {
+            setStatus("start");
+            let newChart = nodeChartRef.current.updateAnnotation();
+            axios.post(window.HARDWARE_ADDRESS + "/train", {
+                device: board.title,
+                nodes: newChart.nodes
+            })
+            .then((resp) => {
+                setStep((prevStep) => (prevStep + 1));
+            })
+        }
+        else if (step === 2) {
+            window.location.href = '/';
         }
     };
 
@@ -127,8 +141,14 @@ export default function Board(props) {
     };
 
     const addAction = (action) => {
-        interactionRecorderRef.current.setAction(action);
-        interactionRecorderRef.current.setOpenActionDialog(true);
+        if (step === 0) {
+            interactionRecorderRef.current.setAction(action);
+            interactionRecorderRef.current.setOpenActionDialog(true);     
+        }
+        else if (step === 2) {
+            verificationPanelRef.current.setAction(action);
+            verificationPanelRef.current.setDoingAction(true);
+        }
     };
 
     const startCollage = async () => {
@@ -168,6 +188,11 @@ export default function Board(props) {
 
     const previewFinalChart = () => {
         nodeChartRef.current.previewChart();
+    };
+
+    const verifyState = (idx) => {
+        let predictState = nodeChartRef.current.predictState(idx);
+        setPredictState(predictState);
     };
 
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
@@ -282,8 +307,12 @@ export default function Board(props) {
                             case 2:
                                 return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
-                                        <div>
-
+                                        <div className="table-div">
+                                            <InstructionTable instructions={instructions} setInstructions={setInstructions} addAction={addAction} status={status} />
+                                        </div>
+                                        <div className="action-div">
+                                            <VerificatopmPanel ref={verificationPanelRef} board={board} chart={chart} status={status} setStatus={setStatus} 
+                                                verifyState={verifyState} predictState={predictState}/>
                                         </div>
                                     </Grid>
                                 )

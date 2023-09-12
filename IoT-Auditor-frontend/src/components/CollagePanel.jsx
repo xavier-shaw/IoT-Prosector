@@ -453,34 +453,34 @@ const CollagePanel = forwardRef((props, ref) => {
             </div>
 
             <Divider className="mt-2">
-                <h5 style={{marginBottom: "0px"}}>State Information</h5>
+                <h3 style={{ fontFamily: "Times New Roman", fontWeight: "bold", marginBottom: "0px" }}>State Information</h3>
             </Divider>
 
             <div className="state-info-div">
                 {prevNode && prevNodeVideo && selectedNode &&
                     <div>
-                        <h5 style={{ marginBottom: "5px" }}>Previous State</h5>
-                        <h6 style={{ marginBottom: "5px" }}>{prevNode.data.label}</h6>
+                        <h4 style={{ fontFamily: "Times New Roman", marginBottom: "5px" }}>Previous State</h4>
+                        <h4 style={{ fontFamily: "Times New Roman", marginBottom: "5px" }}>{prevNode.data.label}</h4>
                         <video src={prevNodeVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
                 {prevNode && actionVideo && selectedNode &&
                     <div>
-                        <h5 style={{ marginBottom: "5px" }}>Action</h5>
-                        <h6 style={{ marginBottom: "5px" }}>{selectedNode.data.action}</h6>
+                        <h4 style={{ fontFamily: "Times New Roman", marginBottom: "5px" }}>Action</h4>
+                        <h4 style={{ fontFamily: "Times New Roman", marginBottom: "5px" }}>{selectedNode.data.action}</h4>
                         <video src={actionVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
                 {!prevNode && selectedNode &&
-                    <h5>No previous state or action</h5>
+                    <h4 style={{ fontFamily: "Times New Roman" }}>No previous state or action</h4>
                 }
                 {!selectedNode &&
-                    <h5>Please select a state or action</h5>
+                    <h4 style={{ fontFamily: "Times New Roman" }}>Please select a state or action</h4>
                 }
                 {selectedNode && selectedNodeVideo &&
                     <div>
-                        <h5 style={{ marginBottom: "5px" }}>Current State</h5>
-                        <h6 style={{ marginBottom: "5px" }}>{selectedNode.data.label}</h6>
+                        <h4 style={{ fontFamily: "Times New Roman", marginBottom: "5px" }}>Current State</h4>
+                        <h4 style={{ fontFamily: "Times New Roman", marginBottom: "5px" }}>{selectedNode.data.label}</h4>
                         <video src={selectedNodeVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }

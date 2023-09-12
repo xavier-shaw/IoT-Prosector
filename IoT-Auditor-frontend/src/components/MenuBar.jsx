@@ -63,10 +63,10 @@ export default function MenuBar(props) {
                                 variant="contained"
                                 color="primary"
                                 endIcon={<PlayArrowIcon />}
-                                disabled={step === 2}
                                 onClick={handleClickNext}
                             >
-                                Next
+                                {step !== 2 && "Next"}
+                                {step === 2 && "Finish"}
                             </Button>
                         </Stack>
                     </div>

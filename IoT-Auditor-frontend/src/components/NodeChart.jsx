@@ -46,7 +46,7 @@ const FlowChart = forwardRef((props, ref) => {
     const [openPreview, setOpenPreview] = useState(false);
     const [closePreview, setClosePreview] = useState(false);
     const [openRepresentDialog, setOpenRepresentDialog] = useState(false);
-    const [representNode, setRepresentNode] = useState(null);
+    const [topNode, setTopNode] = useState(null);
     const nodeTypes_explore = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode }), []);
     const nodeTypes_annotate = useMemo(() => ({ stateNode: ExploreNode, semanticNode: SemanticNode }), []);
     const nodeTypes_verify = useMemo(() => ({ stateNode: DisplayNode, semanticNode: DisplayNode }), []);
@@ -80,15 +80,9 @@ const FlowChart = forwardRef((props, ref) => {
         showDataHints,
         hideSemanticHints,
         hideDataHints,
-        previewChart
+        previewChart,
+        predictState
     }));
-
-    const onLayout = (newNodes, newEdges) => {
-        [newNodes, newEdges] = layout(newNodes, newEdges, false);
-        setNodes(newNodes);
-        setEdges(newEdges);
-        console.log("new edges", newEdges)
-    };
 
     const collageStates = async () => {
         await axios
@@ -150,6 +144,18 @@ const FlowChart = forwardRef((props, ref) => {
             })
     };
 
+    const predictState = async (stateIdx) => {
+        let resp = await axios
+            .get(window.HARDWARE_ADDRESS + "/predict", {
+                params: {
+                    idx: stateIdx
+                }
+            });
+        
+        print("resp", resp);
+        return resp.data.predict_state;
+    };
+
     const changeHeight = (nodes, parentNode) => {
         let newHeight = childNodeMarginY + parentNode.data.children.length * childNodeoffsetY;
         return newHeight + "px";
@@ -207,7 +213,7 @@ const FlowChart = forwardRef((props, ref) => {
             currentNode.style = { ...currentNode.style, backgroundColor: "yellow" };
             setChartSelection(currentNode);
         };
-        
+
         setDisplayNodes(newNodes);
     };
 
@@ -386,9 +392,9 @@ const FlowChart = forwardRef((props, ref) => {
                 if (node.data.representLabel) {
                     label = node.data.representLabel;
                 }
-                else if (node.data.representative && node.data.children?.includes(node.data.representative)) {
-                    label = nodes.find((n) => n.id === node.data.representative).data.label;
-                }
+                // else if (node.data.representative && node.data.children?.includes(node.data.representative)) {
+                //     label = nodes.find((n) => n.id === node.data.representative).data.label;
+                // }
                 else {
                     label = node.data.label;
                 };
@@ -625,17 +631,16 @@ const FlowChart = forwardRef((props, ref) => {
     const onNodeContextMenu = (event, node) => {
         event.preventDefault();
         if (node.parentNode) {
-            setRepresentNode(node);
+            setTopNode(node);
             setOpenRepresentDialog(true);
         }
     };
 
-    const onConfirmRepresentativeNode = () => {
+    const onSetTopNode = () => {
         let newNodes = [...nodes];
-        let parent = newNodes.find((n) => n.data.children?.includes(representNode.id));
-        parent.data.representative = representNode.id;
-        parent.data.children = parent.data.children.filter((c) => c !== representNode.id);
-        parent.data.children.unshift(representNode.id);
+        let parent = newNodes.find((n) => n.data.children?.includes(topNode.id));
+        parent.data.children = parent.data.children.filter((c) => c !== topNode.id);
+        parent.data.children.unshift(topNode.id);
 
         newNodes = updateGroups(newNodes);
         let newEdges = hiddenChildEdges(newNodes, edges);
@@ -645,7 +650,7 @@ const FlowChart = forwardRef((props, ref) => {
     };
 
     const onCloseDialog = () => {
-        setRepresentNode(null);
+        setTopNode(null);
         setOpenRepresentDialog(false);
     };
 
@@ -849,10 +854,8 @@ const FlowChart = forwardRef((props, ref) => {
                     edgeTypes={edgeTypes_verify}
                     nodes={displayNodes}
                     edges={displayEdges}
-                    onNodesChange={onDisplayNodesChange}
-                    onEdgesChange={onDisplayEdgesChange}
                     onInit={setReactFlowInstance}
-                    onNodeClick={onDisplayNodeClick}
+                    // onNodeClick={onDisplayNodeClick}
                     fitView
                 >
                     <Panel position="top-right">
@@ -865,13 +868,13 @@ const FlowChart = forwardRef((props, ref) => {
             }
 
             <Dialog open={openRepresentDialog}>
-                <DialogTitle>Set As Representative</DialogTitle>
+                <DialogTitle>Set As Top</DialogTitle>
                 <DialogContent>
-                    Are you sure to set Node {representNode?.data.label} as the Representative Node of this group?
+                    Are you sure to set state {"state [" + topNode?.data.label + "]"} as the top in this group?
                 </DialogContent>
                 <DialogActions>
-                    <Button variant="outlined" color="error" onClick={onCloseDialog}>Cancel</Button>
-                    <Button variant="outlined" color="primary" onClick={onConfirmRepresentativeNode}>Confirm</Button>
+                    <Button variant="outlined" color="error" onClick={onCloseDialog}>No</Button>
+                    <Button variant="outlined" color="primary" onClick={onSetTopNode}>Yes</Button>
                 </DialogActions>
             </Dialog>
 

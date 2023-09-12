@@ -1,0 +1,163 @@
+import React, { forwardRef, useImperativeHandle, useState, useEffect } from "react";
+import OnlinePredictionIcon from '@mui/icons-material/OnlinePrediction';
+import { Button, Dialog, DialogActions, DialogTitle, FormControl, InputLabel, MenuItem, Select } from "@mui/material";
+import "./VerificationPanel.css";
+import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+
+const VerificatopmPanel = forwardRef((props, ref) => {
+    const { board, chart, status, setStatus, verifyState, predictState } = props;
+    const [action, setAction] = useState("None");
+    const [predicting, setPredicting] = useState(false);
+    const [doingAction, setDoingAction] = useState(false);
+    const [readyForNextAction, setReadyForNextAction] = useState(false);
+    const [wrongPrediction, setWrongPrediction] = useState(false);
+    const [correctState, setCorrectState] = useState("");
+    const [stateIdx, setStateIdx] = useState(null);
+
+    useImperativeHandle(ref, () => ({
+        setAction,
+        setDoingAction
+    }));
+
+    useEffect(() => {
+        if (predicting) {
+            setTimeout(() => {
+                verifyState(stateIdx);
+                endStatePrediction();
+            }, 5300);
+        }
+    }, [predicting])
+
+    const startStatePrediction = () => {
+        setPredicting(true);
+        let newIdx =  uuidv4();
+        setStateIdx(newIdx);
+        axios.get(window.HARDWARE_ADDRESS + "/startSensing", {
+            params: {
+                device: board.title,
+                idx: newIdx
+            }
+        })
+    };
+
+    const endStatePrediction = () => {
+        setReadyForNextAction(false);
+        setStatus("verifying");
+    };
+
+    const onFinishAction = () => {
+        setDoingAction(false);
+        setStatus("state");
+    };
+
+    const onPredictionCorrect = () => {
+        setReadyForNextAction(true);
+        setStatus("choose action");
+    };
+
+    const onPredictionWrong = () => {
+        setWrongPrediction(true);
+    };
+
+    const handleSelectChange = (evt) => {
+        setCorrectState(evt.target.value);
+    };
+
+    const submitCorrectState = () => {
+        setWrongPrediction(false);
+        setReadyForNextAction(true);
+        setCorrectState("");
+        setStatus("choose action");
+    }
+
+    return (
+        <div className="verification-panel-div">
+            <h4>Verification</h4>
+            <div className="operation-div">
+                <div>
+                    {(() => {
+                        switch (status) {
+                            case "start": // record a state
+                                return (
+                                    <>
+                                        <h3 style={{ fontFamily: "Times New Roman", fontWeight: "bold",  }}>Please start a state prediction.</h3>
+                                    </>
+                                );
+                            case "state": // record a state
+                                return (
+                                    <>
+                                        <h4 style={{ fontFamily: "Times New Roman" }}>Your Action is: {action}</h4>
+                                        <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold",  }}>Please start the state prediction.</h4>
+                                    </>
+                                );
+                            case "verifying":
+                            case "choose action": // choose an action
+                                return (
+                                    <>
+                                        <h4 style={{ fontFamily: "Times New Roman" }}>Your Action is: {action}</h4>
+                                        <h4 style={{ fontFamily: "Times New Roman" }}>Current Predicted State is: {predictState}</h4>
+                                        {readyForNextAction &&
+                                            <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Please choose the next action.</h4>
+                                        }
+                                    </>
+                                );
+                            default:
+                                return (
+                                    <>
+                                    </>
+                                );
+                        }
+                    })()}
+                </div>
+
+                <div>
+                    <Button variant={predicting ? "contained" : "outlined"} disabled={(status !== "state" && status !== "start")}
+                        sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }} onClick={startStatePrediction} startIcon={<OnlinePredictionIcon />}>
+                        Start State Prediction
+                    </Button>
+                </div>
+            </div>
+
+            {status === "verifying" &&
+                <div>
+                    {!wrongPrediction &&
+                        <div>
+                            <h4>Is the prediction of your model correct?</h4>
+                            <Button className="me-5" variant="outlined" color="success" onClick={onPredictionCorrect}>Yes</Button>
+                            <Button variant="outlined" color="error" onClick={onPredictionWrong}>No</Button>
+                        </div>
+                    }
+                    {wrongPrediction &&
+                        <div>
+                            <h4>Please select the correct state: </h4>
+                            <FormControl>
+                                <InputLabel>Correct State</InputLabel>
+                                <Select
+                                    value={correctState}
+                                    onChange={handleSelectChange}
+                                    label="Correct State"
+                                    sx={{width: "200px"}}
+                                >
+                                    {chart?.nodes?.filter((n) => !n.parentNode).map((node, i) => (
+                                        <MenuItem key={i} value={node.data.representLabel}>{node.data.representLabel}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            <Button className="ms-5" variant="outlined" color="primary" onClick={submitCorrectState}>Submit</Button>
+                        </div>
+                    }
+                </div>
+            }
+
+            <Dialog open={doingAction}>
+                <DialogTitle>Please finish the action: {action}</DialogTitle>
+                <DialogActions>
+                    <Button variant="outlined" color="success" onClick={onFinishAction}>Finished</Button>
+                </DialogActions>
+            </Dialog>
+        </div>
+    )
+});
+
+export default VerificatopmPanel;
