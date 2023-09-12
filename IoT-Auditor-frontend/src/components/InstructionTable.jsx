@@ -93,15 +93,15 @@ function InstructionTable(props) {
                 <Table stickyHeader>
                     <TableHead>
                         <TableRow>
-                            <TableCell align="center" sx={{ fontWeight: "bold" }}>Function</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: "bold" }}>Interaction</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: "bold" }}>Image</TableCell>
+                            <TableCell align="left" sx={{ fontFamily: "Times New Roman", fontSize: 30, fontWeight: "bold" }}>Function</TableCell>
+                            <TableCell align="left" sx={{ fontFamily: "Times New Roman", fontSize: 30, fontWeight: "bold" }}>Interaction</TableCell>
+                            <TableCell align="left" sx={{ fontFamily: "Times New Roman", fontSize: 30, fontWeight: "bold" }}>Image</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {instructions.map((instruction, index) => (
                             <TableRow key={index} >
-                                <TableCell onClick={() => handleCellClick(index, 'function')}>
+                                <TableCell sx={{ fontFamily: "Times New Roman", fontSize: 26 }} onClick={() => handleCellClick(index, 'function')}>
                                     {editingCell?.index === index && editingCell?.columnName === 'function' ?
                                         <TextField
                                             name="function"
@@ -114,7 +114,7 @@ function InstructionTable(props) {
                                         instruction.function
                                     }
                                 </TableCell>
-                                <TableCell onClick={() => handleCellClick(index, 'interaction')}>
+                                <TableCell sx={{ fontFamily: "Times New Roman", fontSize: 26 }} onClick={() => handleCellClick(index, 'interaction')}>
                                     {editingCell?.index === index && editingCell?.columnName === 'interaction' ?
                                         <TextField
                                             name="interaction"
@@ -138,7 +138,7 @@ function InstructionTable(props) {
                                     {instruction.image ? (
                                         <label htmlFor={`file-upload-${index}`}>
                                             {/* Clicking on this image will now trigger the file input */}
-                                            <img src={instruction.image} alt="Uploaded" width="100" height="100" style={{ cursor: 'pointer' }} />
+                                            <img src={instruction.image} alt="Uploaded" width="130" height="130" style={{ cursor: 'pointer' }} />
                                         </label>
                                     ) : (
                                         <label htmlFor={`file-upload-${index}`}>
@@ -147,8 +147,8 @@ function InstructionTable(props) {
                                     )}
                                 </TableCell>
                                 <TableCell onClick={() => handleCellClick(index, 'operation')}>
-                                    <Button color="primary" onClick={() => handleClickAction(index)} disabled={status !== "choose action"} startIcon={<PlayCircleFilledIcon />} />
-                                    <Button color="error" onClick={() => setOpenDeleteDialog(true)} startIcon={<DeleteIcon />} />
+                                    <Button color="primary" size="large" onClick={() => handleClickAction(index)} disabled={status !== "choose action"} startIcon={<PlayCircleFilledIcon fontSize="large" />} />
+                                    <Button color="error" size="large" onClick={() => setOpenDeleteDialog(true)} startIcon={<DeleteIcon />} />
                                 </TableCell>
                             </TableRow>
                         ))}

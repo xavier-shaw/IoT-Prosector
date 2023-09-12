@@ -197,51 +197,47 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
     return (
         <Grid container className='interaction-recorder-div' >
-            {/* <h3>Interaction Steps</h3>
-            <div className='step-div'>
-                {steps.map((step, index) => (
-                    <p key={index}>{step}</p>
-                ))}
-            </div> */}
             <Grid item xs={6} className='full-div'>
                 <div className='operation-div'>
                     <div>
                         {status === "start" &&
-                            <h4>Please start a new chain</h4>
+                            <h4 style={{ fontFamily: "Times New Roman" }}>Please start a new chain</h4>
                         }
-                        <Button className="m-2" variant="outlined" color='success' onClick={() => setOpenChainDialog(true)}>Start a new action chain</Button>
+                        <Button variant="outlined" color='success' sx={{ fontWeight: "bold",  fontSize: 20, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
+                            Start a new action chain
+                        </Button>
                         {status !== "start" &&
                             <>
-                                <h6>Action Chain: #{chainNum}</h6>
+                                <h4 style={{ fontFamily: "Times New Roman" }}>Action Chain: #{chainNum}</h4>
                                 {(() => {
                                     switch (status) {
                                         case "base state": // record a state
                                             return (
                                                 <>
-                                                    <h6>Current State: {state}</h6>
-                                                    <h6>Please start recording state</h6>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {state}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please start recording state</h4>
                                                 </>
                                             );
                                         case "state": // record a state
                                             return (
                                                 <>
-                                                    <h6>Current State: {prevState}</h6>
-                                                    <h6>Please start recording state</h6>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please start recording state</h4>
                                                 </>
                                             );
                                         case "choose action": // choose an action
                                             return (
                                                 <>
-                                                    <h6>Current State: {prevState}</h6>
-                                                    <h6>Please choose an action</h6>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please choose an action</h4>
                                                 </>
                                             );
                                         case "action": // record an action
                                             return (
                                                 <>
-                                                    <h6>Current State: {prevState}</h6>
-                                                    <h6>Action: {action}</h6>
-                                                    <h6>Next State: {state}</h6>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Action: {action}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Next State: {state}</h4>
                                                 </>
                                             );
                                         default:
@@ -257,14 +253,26 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
                     <div>
                         {recording === "state" ?
-                            <Button className="mt-2" variant="contained" color="error" onClick={endRecording} startIcon={<VideocamOffIcon />}>End State Recording</Button>
+                            <Button variant="contained" color="error" sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
+                                onClick={endRecording} startIcon={<VideocamOffIcon />}>
+                                End State Recording
+                            </Button>
                             :
-                            <Button className="mt-2" variant="outlined" disabled={(status !== "state" && status !== "base state") || chainNum === 0} onClick={() => startRecording("state")} startIcon={<VideocamIcon />}>Start State Recording</Button>
+                            <Button variant="outlined" disabled={(status !== "state" && status !== "base state") || chainNum === 0}
+                                sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }} onClick={() => startRecording("state")} startIcon={<VideocamIcon />}>
+                                Start State Recording
+                            </Button>
                         }
                         {recording === "action" ?
-                            <Button className='mt-2' variant="contained" color="error" onClick={endRecording} startIcon={<VideocamOffIcon />}>End Action Recording</Button>
+                            <Button className='mt-2' variant="contained" color="error" sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
+                                onClick={endRecording} startIcon={<VideocamOffIcon />}>
+                                End Action Recording
+                            </Button>
                             :
-                            <Button className='mt-2' variant="outlined" disabled={status !== "action"} onClick={() => startRecording("action")} startIcon={<VideocamIcon />}>Start Action Recording</Button>
+                            <Button className='mt-2' variant="outlined" disabled={status !== "action"} sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
+                                onClick={() => startRecording("action")} startIcon={<VideocamIcon />}>
+                                Start Action Recording
+                            </Button>
                         }
                     </div>
                 </div>
