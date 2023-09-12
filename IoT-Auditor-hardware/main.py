@@ -425,7 +425,15 @@ async def predict(idx: str):
     }
     return JSONResponse(resp)
 
-
+@app.get('/verify')
+async def verify(device: str, predict: str, correct: str):
+    file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/verification_result/" + device + ".txt"
+    with open(file_name, 'a') as file:
+        # Write content to the file
+        content = predict + " & " + correct + "\n"
+        file.write(content)
+    
+    return {"message": "verification result submitted."}
 # ========================================= Functions =========================================================
 
 

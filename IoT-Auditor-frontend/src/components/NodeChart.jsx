@@ -30,7 +30,7 @@ const NodeChart = forwardRef((props, ref) => {
 })
 
 const FlowChart = forwardRef((props, ref) => {
-    let { board, chart, setChart, step, chartSelection, setChartSelection, updateMatrix, setPredictState } = props;
+    let { board, chart, setChart, step, setAnnotated, chartSelection, setChartSelection, updateMatrix, setPredictState } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -144,8 +144,8 @@ const FlowChart = forwardRef((props, ref) => {
             })
     };
 
-    const predictState = (stateIdx) => {
-        axios
+    const predictState = async (stateIdx) => {
+        await axios
             .get(window.HARDWARE_ADDRESS + "/predict", {
                 params: {
                     idx: stateIdx
@@ -379,6 +379,7 @@ const FlowChart = forwardRef((props, ref) => {
         }
         else {
             updateByPreview();
+            setAnnotated(true);
             setClosePreview(true);
         }
     };
@@ -390,6 +391,7 @@ const FlowChart = forwardRef((props, ref) => {
 
     const confirmClosePreview = () => {
         setClosePreview(false);
+        setAnnotated(true);
         setPreview(false);
     }
 

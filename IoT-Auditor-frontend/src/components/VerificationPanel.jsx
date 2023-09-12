@@ -1,6 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useState, useEffect } from "react";
 import OnlinePredictionIcon from '@mui/icons-material/OnlinePrediction';
-import { Button, Dialog, DialogActions, DialogTitle, FormControl, InputLabel, MenuItem, Select } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogTitle, FormControl, InputLabel, LinearProgress, MenuItem, Select } from "@mui/material";
 import "./VerificationPanel.css";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
@@ -25,7 +25,6 @@ const VerificatopmPanel = forwardRef((props, ref) => {
         if (predicting) {
             setTimeout(async () => {
                 await verifyState(stateIdx);
-                endStatePrediction();
             }, 5300);
         }
     }, [predicting])
@@ -56,8 +55,18 @@ const VerificatopmPanel = forwardRef((props, ref) => {
     };
 
     const onPredictionCorrect = () => {
-        setReadyForNextAction(true);
-        setStatus("choose action");
+        axios
+        .get(window.HARDWARE_ADDRESS + "/verify", {
+            params: {
+                device: board.title,
+                predict: predictState.data.label,
+                correct: predictState.data.label 
+            }
+        })
+        .then((resp) => {
+            setReadyForNextAction(true);
+            setStatus("choose action");
+        }) 
     };
 
     const onPredictionWrong = () => {
@@ -69,10 +78,19 @@ const VerificatopmPanel = forwardRef((props, ref) => {
     };
 
     const submitCorrectState = () => {
-        setWrongPrediction(false);
-        setReadyForNextAction(true);
-        setCorrectState("");
-        setStatus("choose action");
+        axios
+        .get(window.HARDWARE_ADDRESS + "/verify", {
+            params: {
+                predict: predictState.data.label,
+                correct: correctState 
+            }
+        })
+        .then((resp) => {
+            setWrongPrediction(false);
+            setReadyForNextAction(true);
+            setCorrectState("");
+            setStatus("choose action");
+        })
     }
 
     return (
@@ -120,6 +138,8 @@ const VerificatopmPanel = forwardRef((props, ref) => {
                         sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }} onClick={startStatePrediction} startIcon={<OnlinePredictionIcon />}>
                         {predicting? "Predicting" : "Start State Prediction"}
                     </Button>
+                    <p style={{fontFamily: "Times New Roman", fontSize: 20}}>It takes up to 30 seconds to finish the prediction.</p>
+                    <LinearProgress/>
                 </div>
             </div>
 

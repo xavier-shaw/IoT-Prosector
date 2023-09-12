@@ -32,9 +32,11 @@ export default function Board(props) {
     const [status, setStatus] = useState("start");
     const [openDialog, setOpenDiaglog] = useState(false);
     const [waitForProcessing, setWaitForProcessing] = useState(false);
+    const [annotated, setAnnotated] = useState(false);
     const [waitForTraining, setWaitForTraining] = useState(false);
     const [finishProcess, setFinishProcess] = useState(false);
     const [predictState, setPredictState] = useState(null);
+    const [collageFinish, setCollageFinish] = useState(false);
     const nodeChartRef = useRef(null);
     const collagePanelRef = useRef(null);
     const interactionRecorderRef = useRef(null);
@@ -156,6 +158,7 @@ export default function Board(props) {
 
     const startCollage = async () => {
         await nodeChartRef.current.collageStates();
+        setCollageFinish(true);
         setOpenDiaglog(true);
     };
 
@@ -196,7 +199,7 @@ export default function Board(props) {
     const verifyState = async (idx) => {
         console.log("verify", idx)
         await nodeChartRef.current.predictState(idx);
-        // verificationPanelRef.current.endStatePrediction();
+        verificationPanelRef.current.endStatePrediction();
     };
 
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
@@ -262,16 +265,15 @@ export default function Board(props) {
             <Helmet>
                 <title>{board.title}</title>
             </Helmet>
-            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} />
+            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} annotated={annotated}/>
             <div className="main-board-div">
                 <div className="top-side-div">
                     <h6>You are now at the {stages[step]} Stage.</h6>
                     {step === 1 &&
                         <>
-                            <h6>&nbsp;You can </h6>
-                            <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={startCollage}>Collage</Button>
-                            <h6>, interact, and </h6>
-                            <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>Preview</Button>
+                            <Button className="me-2" size="small" color="primary" variant="contained" disabled={collageFinish} onClick={startCollage}>Collage</Button>
+                            <h6>by our algorithm first, then collage by yourself, and </h6>
+                            <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>Preview & Annotate</Button>
                             <h6>the final state diagram.</h6>
                         </>
                     }
@@ -284,7 +286,7 @@ export default function Board(props) {
                 </div>
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={7} className="panel-div">
-                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
+                        <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step} setAnnotated={setAnnotated}
                             chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictState={setPredictState}/>
                     </Grid>
                     {(() => {
@@ -342,7 +344,7 @@ export default function Board(props) {
             </Dialog>
 
             <Dialog open={waitForTraining}>
-                <DialogTitle>Please wait until the model traning is done.</DialogTitle>
+                <DialogTitle>Please wait until the model training is done.</DialogTitle>
                 <DialogContent>
                     {!finishProcess && <div>
                         <p>It takes up to 30 seconds to train the model.</p>

@@ -10,7 +10,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Stack } from '@mui/material';
 
 export default function MenuBar(props) {
-    let { title, onSave, onTitleChange, step, handleClickNext, handleClickBack} = props;
+    let { title, onSave, onTitleChange, step, handleClickNext, handleClickBack, annotated} = props;
 
     return (
         <div>
@@ -64,6 +64,7 @@ export default function MenuBar(props) {
                                 color="primary"
                                 endIcon={<PlayArrowIcon />}
                                 onClick={handleClickNext}
+                                disabled={step === 1 && !annotated}
                             >
                                 {step !== 2 && "Next"}
                                 {step === 2 && "Finish"}
