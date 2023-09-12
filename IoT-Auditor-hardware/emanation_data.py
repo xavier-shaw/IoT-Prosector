@@ -3,6 +3,7 @@ import time
 import subprocess
 import FFTpeaks
 import os 
+import pickle
 
 def emanation_data(idx):
     debug = False
@@ -18,7 +19,10 @@ def emanation_data(idx):
         ## rayray's emanation detection codes translated from matlab
         fft_peaks =  FFTpeaks.getEmanations_raw(full_path_2)
         # q.put(fft_peaks)
-        return fft_peaks
+        file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + idx + ".pkl"
+        with open(file_name, 'wb') as file:
+            pickle.dump(fft_peaks, file)
+        return True
     
 def recalculate_emanation_data(idx):
     debug = False

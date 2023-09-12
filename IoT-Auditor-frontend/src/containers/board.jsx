@@ -32,6 +32,7 @@ export default function Board(props) {
     const [status, setStatus] = useState("start");
     const [openDialog, setOpenDiaglog] = useState(false);
     const [waitForProcessing, setWaitForProcessing] = useState(false);
+    const [waitForTraining, setWaitForTraining] = useState(false);
     const [finishProcess, setFinishProcess] = useState(false);
     const [predictState, setPredictState] = useState(null);
     const nodeChartRef = useRef(null);
@@ -96,13 +97,14 @@ export default function Board(props) {
         }
         else if (step === 1) {
             setStatus("start");
+            setWaitForTraining(true);
             let newChart = nodeChartRef.current.updateAnnotation();
             axios.post(window.HARDWARE_ADDRESS + "/train", {
                 device: board.title,
                 nodes: newChart.nodes
             })
             .then((resp) => {
-                setStep((prevStep) => (prevStep + 1));
+                setFinishProcess(true);
             })
         }
         else if (step === 2) {
@@ -116,6 +118,7 @@ export default function Board(props) {
 
     const toNextStage = () => {
         setWaitForProcessing(false);
+        setWaitForTraining(false);
         setFinishProcess(false);
         setStep((prev) => (prev + 1));
     };
@@ -190,9 +193,10 @@ export default function Board(props) {
         nodeChartRef.current.previewChart();
     };
 
-    const verifyState = (idx) => {
-        let predictState = nodeChartRef.current.predictState(idx);
-        setPredictState(predictState);
+    const verifyState = async (idx) => {
+        console.log("verify", idx)
+        await nodeChartRef.current.predictState(idx);
+        // verificationPanelRef.current.endStatePrediction();
     };
 
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
@@ -281,7 +285,7 @@ export default function Board(props) {
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={7} className="panel-div">
                         <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step}
-                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} />
+                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictState={setPredictState}/>
                     </Grid>
                     {(() => {
                         switch (step) {
@@ -334,6 +338,20 @@ export default function Board(props) {
                 </DialogContent>
                 <DialogActions>
                     <Button variant="contained" color="primary" disabled={!finishProcess} onClick={toNextStage}>To Collage Stage</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={waitForTraining}>
+                <DialogTitle>Please wait until the model traning is done.</DialogTitle>
+                <DialogContent>
+                    {!finishProcess && <div>
+                        <p>It takes up to 30 seconds to train the model.</p>
+                        <LinearProgress />
+                    </div>}
+                    {finishProcess && <h5>The model training is finished.</h5>}
+                </DialogContent>
+                <DialogActions>
+                    <Button variant="contained" color="primary" disabled={!finishProcess} onClick={toNextStage}>To Verification Stage</Button>
                 </DialogActions>
             </Dialog>
         </div>

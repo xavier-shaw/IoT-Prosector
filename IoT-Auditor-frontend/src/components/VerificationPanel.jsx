@@ -17,33 +17,37 @@ const VerificatopmPanel = forwardRef((props, ref) => {
 
     useImperativeHandle(ref, () => ({
         setAction,
-        setDoingAction
+        setDoingAction,
+        endStatePrediction
     }));
 
     useEffect(() => {
         if (predicting) {
-            setTimeout(() => {
-                verifyState(stateIdx);
+            setTimeout(async () => {
+                await verifyState(stateIdx);
                 endStatePrediction();
             }, 5300);
         }
     }, [predicting])
 
     const startStatePrediction = () => {
-        setPredicting(true);
-        let newIdx =  uuidv4();
-        setStateIdx(newIdx);
-        axios.get(window.HARDWARE_ADDRESS + "/startSensing", {
-            params: {
-                device: board.title,
-                idx: newIdx
-            }
-        })
+        if (!predicting) {
+            setPredicting(true);
+            let newIdx =  uuidv4();
+            setStateIdx(newIdx);
+            axios.get(window.HARDWARE_ADDRESS + "/startSensing", {
+                params: {
+                    device: board.title,
+                    idx: newIdx
+                }
+            })   
+        }
     };
 
     const endStatePrediction = () => {
         setReadyForNextAction(false);
         setStatus("verifying");
+        setPredicting(false);
     };
 
     const onFinishAction = () => {
@@ -96,7 +100,7 @@ const VerificatopmPanel = forwardRef((props, ref) => {
                                 return (
                                     <>
                                         <h4 style={{ fontFamily: "Times New Roman" }}>Your Action is: {action}</h4>
-                                        <h4 style={{ fontFamily: "Times New Roman" }}>Current Predicted State is: {predictState}</h4>
+                                        <h4 style={{ fontFamily: "Times New Roman" }}>Current Predicted State is: {predictState?.data?.label}</h4>
                                         {readyForNextAction &&
                                             <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Please choose the next action.</h4>
                                         }
@@ -114,7 +118,7 @@ const VerificatopmPanel = forwardRef((props, ref) => {
                 <div>
                     <Button variant={predicting ? "contained" : "outlined"} disabled={(status !== "state" && status !== "start")}
                         sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }} onClick={startStatePrediction} startIcon={<OnlinePredictionIcon />}>
-                        Start State Prediction
+                        {predicting? "Predicting" : "Start State Prediction"}
                     </Button>
                 </div>
             </div>

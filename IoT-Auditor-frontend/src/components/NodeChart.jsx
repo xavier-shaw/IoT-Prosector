@@ -30,7 +30,7 @@ const NodeChart = forwardRef((props, ref) => {
 })
 
 const FlowChart = forwardRef((props, ref) => {
-    let { board, chart, setChart, step, chartSelection, setChartSelection, updateMatrix } = props;
+    let { board, chart, setChart, step, chartSelection, setChartSelection, updateMatrix, setPredictState } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -144,16 +144,31 @@ const FlowChart = forwardRef((props, ref) => {
             })
     };
 
-    const predictState = async (stateIdx) => {
-        let resp = await axios
+    const predictState = (stateIdx) => {
+        axios
             .get(window.HARDWARE_ADDRESS + "/predict", {
                 params: {
                     idx: stateIdx
                 }
-            });
-        
-        print("resp", resp);
-        return resp.data.predict_state;
+            })
+            .then((resp) => {
+                let predictIdx = resp.data.predict_state;
+                let predictState = nodes.find((n) => n.id === predictIdx);
+                setPredictState(predictState);
+                let newNodes = [...displayNodes];
+                newNodes = newNodes.map((n) => {
+                    if (n.id === predictIdx) {
+                        n.style = {...n.style, backgroundColor: "yellow"}
+                    }
+                    else {
+                        n.style = {...n.style, backgroundColor: "white"}
+                    }
+
+                    return n;
+                });
+
+                setDisplayNodes(newNodes);
+            })
     };
 
     const changeHeight = (nodes, parentNode) => {
@@ -436,7 +451,6 @@ const FlowChart = forwardRef((props, ref) => {
 
             newEdges.push(edge);
         };
-
 
         newNodes = newNodes.map((node) => {
             let maxHandles = node.data.inEdgeNum > node.data.outEdgeNum ? node.data.inEdgeNum : node.data.outEdgeNum;

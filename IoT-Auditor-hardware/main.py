@@ -62,6 +62,7 @@ avg_currents = []
 min_currents = []
 times = []
 start_time = 0
+finish_write = True
 
 sample_num = 150
 group_cnt = 10
@@ -192,12 +193,10 @@ async def start_sensing(device: str, idx: str, background_tasks: BackgroundTasks
 
 
 async def read_from_sm200(device, idx):
-    global processes, finished_processes
+    global processes, finished_processes, finish_write
     processes.append(idx)
-    emanation_result = await run_in_process(emanation_data.emanation_data, idx)
-    file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + idx + ".pkl"
-    with open(file_name, 'wb') as file:
-        pickle.dump(emanation_result, file)
+    finish_write = False
+    finish_write = await run_in_process(emanation_data.emanation_data, idx)
     finished_processes.append(idx)
     print("finish emanation data storing")
 
@@ -256,7 +255,7 @@ async def wait_for_data_processing(data: DataModel = Body(...)):
     finished_processes = []
     processes = []
 
-    resp = process_data(data.device, data.nodes)
+    resp = process_data(data.nodes)
 
     return JSONResponse(jsonable_encoder(resp))
 
@@ -381,6 +380,7 @@ async def train_model(data: DataModel = Body(...)):
 
     X = []
     Y = []
+
     for i in range(len(data_points)):
         data_point = data_points[i]
         data_label = tsne_data_labels[i]
@@ -406,11 +406,10 @@ async def predict(idx: str):
     power_data = avg_currents
     emanation_data = get_emanation_data(idx)
     data_features = predict_data_processing(power_data, emanation_data)
+    print("feature", data_features)
 
-    predict_results = []
-    for feature in data_features:
-        pred = classifier.predict(feature)
-        predict_results.append(pred)
+    predict_results = classifier.predict(data_features)
+    print("result", predict_results)
 
     counter = Counter(predict_results)
     max_predict = max(counter.values())
@@ -421,7 +420,10 @@ async def predict(idx: str):
             break
     clear_data()
 
-    return {"predict_state": predict_result}
+    resp ={
+        "predict_state": predict_result
+    }
+    return JSONResponse(resp)
 
 
 # ========================================= Functions =========================================================
@@ -555,7 +557,7 @@ def get_emanation_features(emanation_data, groups_cnt):
     return emanation_features
 
 
-def get_emanation_data(state_idx):
+def get_emanation_data(state_idx, wait=False):
     # data = app.database["iotdatas"].find_one(
     #     {"device": device, "idx": state_idx + "-emanation"})
     # emanation_data = data["emanation"]
@@ -563,8 +565,11 @@ def get_emanation_data(state_idx):
     # file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
     # with open(file_name, 'rb') as file:
     #     emanation_data = pickle.load(file)
-
+    global finish_write
     file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
+    while not os.path.exists(file_name):
+        continue
+    time.sleep(2)
     emanation_result = []
     with open(file_name, 'rb') as file:
         power_result = pickle.load(file)
@@ -748,7 +753,7 @@ def data_processing(states, raw_power_data, raw_emanation_data):
             emanations_fea[interp_index, :] = np.mean(
                 emanation_interp[j:j+num_examples, :], axis=0)
             interp_index = interp_index + 1
-            j = j + j+num_examples
+            j = j + num_examples
 
     # conducting  tsne to show the 2d scattering plot
     print("power: ", powers_fea.shape)
@@ -790,7 +795,7 @@ def predict_data_processing(power_data, emanation_data):
         emanations_fea[interp_index, :] = np.mean(
             emanation_interp[j:j+num_examples, :], axis=0)
         interp_index = interp_index + 1
-        j = j + j+num_examples
+        j = j + num_examples
 
     conc_feas = np.hstack((powers_fea, emanations_fea))
     
