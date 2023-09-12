@@ -21,7 +21,7 @@ export default function AnnotateNode(props) {
       {editable ?
         <TextField className="m-auto" size='small' value={stateName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} />
         :
-        <p className="m-auto" style={{ fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{stateName}</p>
+        <p className="m-auto" style={{ fontFamily: "Times New Roman", fontSize: 30, fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{stateName}</p>
       }
       <Handle type="source" position={Position.Right} />
     </div>

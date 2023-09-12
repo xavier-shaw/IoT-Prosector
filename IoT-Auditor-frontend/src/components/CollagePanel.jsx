@@ -61,7 +61,7 @@ const CollagePanel = forwardRef((props, ref) => {
                 setHint("");
             }
             setSelectedNode(null);
-            
+
             if (figure === "distribution") {
                 drawScatterplot(classificationData, chart.nodes, chartSelection);
             }
@@ -140,8 +140,8 @@ const CollagePanel = forwardRef((props, ref) => {
             .style("font-family", "Times New Roman")
             .style("text-anchor", "middle")
             .text("Mental Model")
-            // .style("writing-mode", "tb")
-            // .style("glyph-orientation-vertical", 90)
+        // .style("writing-mode", "tb")
+        // .style("glyph-orientation-vertical", 90)
 
         let cellWidth = matrixWidth / classificationData.matrix[0].length;
         let cellHeight = matrixHeight / classificationData.matrix.length;
@@ -281,7 +281,7 @@ const CollagePanel = forwardRef((props, ref) => {
         const color = d3.scaleOrdinal()
             .domain(nodes.map(d => d.id))
             .range(colorPalette);
-        
+
         let legend = svg.append("g")
             .attr("transform", `translate(${0}, ${margin})`)
 
@@ -298,15 +298,15 @@ const CollagePanel = forwardRef((props, ref) => {
             .attr("fill", d => color(d.id))
             .attr("width", cubeSize)
             .attr("height", cubeSize)
-            // .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize)}, 0)`);
+        // .attr("transform", (d, i) => `translate(${i * (cubeSize + seqSize)}, 0)`);
 
         legendItems
             .append("text")
             .text(d => {
                 if (d.type === "stateNode") {
-                return d.data.label.split(" ")[0];
+                    return d.data.label.split(" ")[0];
                 } else {
-                return d.data.label.split(" ")[1];
+                    return d.data.label.split(" ")[1];
                 }
             })
             .style("font-size", 20)
@@ -323,7 +323,7 @@ const CollagePanel = forwardRef((props, ref) => {
             d3.select(node).attr("transform", `translate(${xOffset}, ${yOffset})`)
             xOffset += bbox.width + cubeSize + legendMargin;
         }, 0);
-            
+
 
         let xScaler = d3.scaleLinear()
             .domain([d3.min(data, d => d[0]), d3.max(data, d => d[0])])
@@ -429,7 +429,7 @@ const CollagePanel = forwardRef((props, ref) => {
     const exportSVG = () => {
         const element = document.getElementById("svg");
         let svgString = new XMLSerializer().serializeToString(element);
-        var blob = new Blob([svgString], {type: "image/svg+xml;chartset=utf-8"});
+        var blob = new Blob([svgString], { type: "image/svg+xml;chartset=utf-8" });
         var url = URL.createObjectURL(blob);
         var a = document.createElement("a");
         a.href = url;
@@ -452,22 +452,22 @@ const CollagePanel = forwardRef((props, ref) => {
                 <Skeleton className="m-auto" variant="rectangular" animation="wave" width={graphWidth} height={graphHeight} />
             </div>
 
-            <Divider className="mt-3">
-                <h5>State Information</h5>
-                </Divider>
-            
+            <Divider className="mt-2">
+                <h5 style={{marginBottom: "0px"}}>State Information</h5>
+            </Divider>
+
             <div className="state-info-div">
                 {prevNode && prevNodeVideo && selectedNode &&
                     <div>
-                        <h6 style={{marginBottom: "5px"}}>Previous State</h6>
-                        <p style={{marginBottom: "5px"}}>{prevNode.data.label}</p>
+                        <h5 style={{ marginBottom: "5px" }}>Previous State</h5>
+                        <h6 style={{ marginBottom: "5px" }}>{prevNode.data.label}</h6>
                         <video src={prevNodeVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
                 {prevNode && actionVideo && selectedNode &&
                     <div>
-                        <h6 style={{marginBottom: "5px"}}>Action</h6>
-                        <p style={{marginBottom: "5px"}}>{selectedNode.data.action}</p>
+                        <h5 style={{ marginBottom: "5px" }}>Action</h5>
+                        <h6 style={{ marginBottom: "5px" }}>{selectedNode.data.action}</h6>
                         <video src={actionVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }
@@ -479,8 +479,8 @@ const CollagePanel = forwardRef((props, ref) => {
                 }
                 {selectedNode && selectedNodeVideo &&
                     <div>
-                        <h6 style={{marginBottom: "5px"}}>Current State</h6>
-                        <p style={{marginBottom: "5px"}}>{selectedNode.data.label}</p>
+                        <h5 style={{ marginBottom: "5px" }}>Current State</h5>
+                        <h6 style={{ marginBottom: "5px" }}>{selectedNode.data.label}</h6>
                         <video src={selectedNodeVideo} controls width={videoWidth} height={videoHeight} />
                     </div>
                 }

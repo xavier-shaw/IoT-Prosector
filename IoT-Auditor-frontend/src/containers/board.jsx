@@ -216,7 +216,7 @@ export default function Board(props) {
                 color: '#FF0072',
             },
             style: {
-                strokeWidth: 2,
+                strokeWidth: 3,
                 stroke: '#000000',
             },
             data: {

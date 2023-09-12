@@ -4,7 +4,7 @@ export const edgeZIndex = 1;
 export const labelZIndex = 1001;
 
 export const stateNodeStyle = {
-    width: "120px",
+    width: "220px",
     height: "80px",
     borderWidth: "1px",
     borderStyle: "solid",
@@ -18,7 +18,7 @@ export const stateNodeStyle = {
 }
 
 export const semanticNodeStyle = {
-    width: "190px",
+    width: "260px",
     height: "160px",
     borderWidth: "3px",
     borderStyle: "solid",
@@ -35,7 +35,6 @@ export const displayNodeStyle = {
     borderStyle: "solid",
     padding: "10px",
     borderRadius: "10px",
-    backgroundColor: "#F7E2E1",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -56,19 +55,23 @@ export const getEdgeStyle = (labelX, labelY) => {
     return {
         position: 'absolute',
         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-        fontSize: 18,
         fontWeight: 'bold',
         pointerEvents: 'all',
-        padding: 10,
-        borderRadius: 10,
+        padding: 5,
+        borderRadius: 5,
+        height: 35,
+        backgroundColor: "#F5F6ED",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
         zIndex: labelZIndex
     }
 }
 
-export const nodeOffsetX = 300;
+export const nodeOffsetX = 450;
 export const nodeOffsetY = 150;
 
-export const childNodeoffsetX = 35;
+export const childNodeoffsetX = 20;
 export const childNodeoffsetY = 100;
 export const childNodeMarginY = 20;
 export const childNodeMarginX = 50;
@@ -100,18 +103,18 @@ export const noneColor = "black";
 export const selectedColor = "#4361ee";
 
 export const customColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
-'#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8',
-'#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000'];
+    '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8',
+    '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000'];
 
 export const colorPalette = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
-    "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#9edae5", "#dbdb8d", 
+    "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#9edae5", "#dbdb8d",
     "#c7c7c7", "#c49c94", "#f7b6d2", "#c5b0d5", "#aec7e8", "#ffbb78",
     "#98df8a", "#ff9896", "#fdd0a2", "#dadaeb", "#c7dbd2", "#b0e57c",
     "#ff9896", "#9edae5", "#c5d0e6", "#fbebd6", "#fdae6b", "#e6550d",
     "#fdae6b", "#a1d99b", "#e7ba52", "#6baed6", "#637939", "#8ca252"
-  ];
-  
+];
 
-export const displayHandleMargin = 5;
-export const displayHandleOffset = 40;
+
+export const displayHandleMargin = 80;
+export const displayHandleOffset = 80;

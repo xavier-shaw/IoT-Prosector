@@ -5,33 +5,39 @@ import { groupZIndex, childNodeMarginY, childNodeoffsetY, displayHandleMargin, d
 
 export default function DisplayNode(props) {
     let { id, data } = props;
-    const l = data.representative;
+    const l = data.label;
     const [editable, setEditable] = useState(false);
     const [nodeName, setNodeName] = useState(l);
 
     const onChange = (event) => {
-        data.representative = event.target.value;
+        data.label = event.target.value;
         setNodeName(event.target.value);
     };
 
+    let maxHandles = data.inEdgeNum > data.outEdgeNum? data.inEdgeNum: data.outEdgeNum;
+    let height = displayHandleMargin + maxHandles * displayHandleOffset;
+
+    const targetEdgeHandles = Array.from({ length: maxHandles }, (v, i) => {
+        return (
+            <Handle key={i} type="target" id={"in-" + i} position={Position.Left}
+            style={{ top: (height / (maxHandles + 1)) * (i + 1) }} />
+        )
+    });
+
+    const sourceEdgeHandles = Array.from({ length: maxHandles }, (v, i) => (
+        <Handle key={i} type="source" id={"out-" + i} position={Position.Right}
+            style={{ top: (height / (maxHandles + 1)) * (i + 1) }} />
+    ));
+
     return (
         <div style={{ zIndex: groupZIndex }}>
-            {data.children && data.children?.map((child, idx) => (
-                <Handle key={idx} type="target" id={"target-" + idx} position={Position.Left}
-                    style={{ top: displayHandleMargin + idx * displayHandleOffset }} />
-            ))}
-            {!data.children && <Handle type="target" position={Position.Left} />}
+            {targetEdgeHandles}
             {editable ?
                 <TextField className="m-auto nodrag" value={nodeName} autoFocus onChange={onChange} onBlur={() => { setEditable(false) }} />
                 :
-                <h5 className='m-auto' style={{ fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{nodeName? nodeName: data.representative}</h5>
+                <h5 className='m-auto' style={{ fontFamily: "Times New Roman", fontSize: 30, fontWeight: 'bold' }} onClick={() => { setEditable(true) }}>{data.label}</h5>
             }
-            {data.children && data.children?.map((child, idx) => (
-                    <Handle key={idx} type="source" id={"source-" + idx} position={Position.Right} 
-                    style={{ top: displayHandleMargin + idx * displayHandleOffset }} />
-                )
-            )}
-            {!data.children && <Handle type="source" position={Position.Right} />}
+            {sourceEdgeHandles}
         </div>
     );
 }

@@ -12,7 +12,7 @@ import { MarkerType } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
 import "./NodeChart.css";
 import 'reactflow/dist/style.css';
-import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors, stateZIndex, colorPalette } from "../shared/chartStyle";
+import { nodeOffsetX, nodeOffsetY, layoutRowNum, childNodeMarginY, childNodeoffsetX, childNodeoffsetY, highlightColor, semanticNodeStyle, semanticNodeMarginX, semanticNodeMarginY, semanticNodeOffsetX, stateNodeStyle, combinedNodeMarginX, combinedNodeMarginY, combinedNodeOffsetX, childSemanticNodeOffsetX, childSemanticNodeOffsetY, childNodeMarginX, combinedNodeStyle, childSemanticNodeMarginX, childSemanticNodeMarginY, offWidth, offHeight, displayNodeStyle, groupZIndex, edgeZIndex, selectedColor, customColors, stateZIndex, colorPalette, displayHandleMargin, displayHandleOffset } from "../shared/chartStyle";
 import axios from "axios";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import DisplayNode from "./DisplayNode";
@@ -43,6 +43,8 @@ const FlowChart = forwardRef((props, ref) => {
     const [semanticHints, setSemanticHints] = useState({});
     const [dataHints, setDataHints] = useState({});
     const [preview, setPreview] = useState(false);
+    const [openPreview, setOpenPreview] = useState(false);
+    const [closePreview, setClosePreview] = useState(false);
     const [openRepresentDialog, setOpenRepresentDialog] = useState(false);
     const [representNode, setRepresentNode] = useState(null);
     const nodeTypes_explore = useMemo(() => ({ stateNode: AnnotateNode, semanticNode: SemanticNode }), []);
@@ -53,7 +55,7 @@ const FlowChart = forwardRef((props, ref) => {
     // const edgeTypes_verify = useMemo(() => ({ transitionEdge: FloatingEdge }), []);
     const edgeTypes_explore = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
     const edgeTypes_annotate = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
-    const edgeTypes_verify = useMemo(() => ({ transitionEdge: DisplayEdge }), []);
+    const edgeTypes_verify = useMemo(() => ({ transitionEdge: ExploreEdge }), []);
 
     useEffect(() => {
         if (chart.hasOwnProperty("nodes")) {
@@ -104,12 +106,6 @@ const FlowChart = forwardRef((props, ref) => {
 
                 let newNodes = [...nodes];
                 let newEdges = [...edges];
-
-                // newNodes = newNodes.map((n) => {
-                //     // n.style = stateNodeStyle;
-                //     n.zIndex = stateZIndex;
-                //     return n;
-                // })
 
                 for (let index = 0; index < action_group_count; index++) {
                     let semanticNode = createNewNode({ x: semanticNodeMarginX + semanticNodeOffsetX * index, y: semanticNodeMarginY }, "semanticNode");
@@ -200,6 +196,21 @@ const FlowChart = forwardRef((props, ref) => {
         setNodes(newNodes);
     };
 
+    const onDisplayNodeClick = (evt, node) => {
+        let newNodes = [...displayNodes];
+        let currentNode = newNodes.find((n) => n.id === node.id);
+        if (chartSelection?.id === node.id) {
+            currentNode.style = { ...currentNode.style, backgroundColor: "white" };
+            setChartSelection(null);
+        }
+        else {
+            currentNode.style = { ...currentNode.style, backgroundColor: "yellow" };
+            setChartSelection(currentNode);
+        };
+        
+        setDisplayNodes(newNodes);
+    };
+
     const layout = (newNodes, newEdges, preview) => {
         let nextRowY = 0;
         let index = 0;
@@ -218,6 +229,7 @@ const FlowChart = forwardRef((props, ref) => {
         });
 
         newNodes = newNodes.map((node) => {
+
             if (!node.parentNode) {
                 if (index % layoutRowNum === 0 && index !== 0) {
                     for (let i = index - 1; i >= index - layoutRowNum; i--) {
@@ -254,6 +266,7 @@ const FlowChart = forwardRef((props, ref) => {
             .range(colorPalette);
 
         nodes = nodes.map((n) => {
+
             if (n.type === "semanticNode") {
                 let label = "Group (";
                 for (const childId of n.data.children) {
@@ -264,20 +277,20 @@ const FlowChart = forwardRef((props, ref) => {
                 }
                 label = label.slice(0, -1) + ")";
                 n.data.label = label;
-                n.style = {...n.style, backgroundColor: colors(n.id)};
+                n.style = { ...n.style, backgroundColor: colors(n.id) };
                 return n;
             }
             else if (n.type === "stateNode") {
                 if (n.parentNode && n.id !== chartSelection?.id) {
-                    n.style = {...n.style, backgroundColor: stateNodeStyle.backgroundColor};
+                    n.style = { ...n.style, backgroundColor: stateNodeStyle.backgroundColor };
                 }
                 else {
-                    n.style = {...n.style, backgroundColor: colors(n.id)}
+                    n.style = { ...n.style, backgroundColor: colors(n.id) }
                 }
                 // let parent = nodes.find((nd) => nd.id === n.parentNode);
                 // n.position = { x: childNodeoffsetX, y: childNodeMarginY + parent.data.children.indexOf(n.id) * childNodeoffsetY };
                 // n.positionAbsolute = { x: parent.positionAbsolute.x + n.position.x, y: parent.positionAbsolute.y + n.position.y };
-                
+
                 return n;
             }
         });
@@ -340,56 +353,115 @@ const FlowChart = forwardRef((props, ref) => {
 
     const previewChart = () => {
         if (!preview) {
-            generateFinalChart();
-            setPreview(true);
+            generatePreviewChart();
+            setOpenPreview(true);
         }
         else {
-            setPreview(false);
+            updateByPreview();
+            setClosePreview(true);
         }
     };
 
-    const generateFinalChart = () => {
+    const confirmPreview = () => {
+        setOpenPreview(false);
+        setPreview(true);
+    }
+
+    const confirmClosePreview = () => {
+        setClosePreview(false);
+        setPreview(false);
+    }
+
+    const generatePreviewChart = () => {
         let newNodes = [];
         let newEdges = [];
+
+        const colors = d3.scaleOrdinal()
+            .domain(nodes.map(d => d.id))
+            .range(colorPalette);
 
         for (const node of nodes) {
             if (!node.parentNode) {
                 let label = "";
-                if (node.data.representative) {
-                    label = node.data.representative;
+                if (node.data.representLabel) {
+                    label = node.data.representLabel;
+                }
+                else if (node.data.representative && node.data.children?.includes(node.data.representative)) {
+                    label = nodes.find((n) => n.id === node.data.representative).data.label;
                 }
                 else {
                     label = node.data.label;
                 };
 
-                let newNode = { ...node, data: { ...node.data, representative: label }, style: displayNodeStyle };
+                let newNode = { ...node, data: { ...node.data, label: label, inEdgeNum: 0, outEdgeNum: 0 }, style: { ...displayNodeStyle, backgroundColor: colors(node.id) } };
                 newNodes.push(newNode);
             }
         };
 
         let edgeSet = {};
-        let pos_edges = edges.filter((e) => !e.hidden);
-        for (const edge of pos_edges) {
-            let uniqueId = edge.source + "-" + edge.target + "-" + edge.data.label;
-            if (!edgeSet.hasOwnProperty(uniqueId)) {
-                edgeSet[uniqueId] = edge;
-                edge.data.actions = edge.data.label;
-            }
-            else {
-                if (!edgeSet[uniqueId].data.actions.includes(edge.data.label)) {
-                    edgeSet[uniqueId].data.actions.push(edge.data.label);
+        for (const edge of edges) {
+            if (!edge.hidden) {
+                let uniqueId = edge.source + "-" + edge.target;
+                if (!edgeSet.hasOwnProperty(uniqueId)) {
+                    let newEdge = { ...edge, data: { ...edge.data, actions: [edge.data.label] } }
+                    edgeSet[uniqueId] = newEdge;
+                }
+                else {
+                    if (!edgeSet[uniqueId].data.actions.includes(edge.data.label)) {
+                        edgeSet[uniqueId].data.actions.push(edge.data.label);
+                    }
                 }
             }
-        };
-
-        for (const [key, value] of Object.entries(edgeSet)) {
-            newEdges.push(value);
         }
 
-        // [newNodes, newEdges] = layout(newNodes, newEdges, true);
+        for (const [id, edge] of Object.entries(edgeSet)) {
+            let actions = "";
+            for (const action of edge.data.actions) {
+                actions += action + " / ";
+            }
+
+            edge.data.actions = actions.slice(0, -3);
+            let srcNode = newNodes.find((n) => n.id === edge.source);
+            let dstNode = newNodes.find((n) => n.id === edge.target);
+            edge.sourceHandle = "out-" + srcNode.data.outEdgeNum;
+            srcNode.data.outEdgeNum += 1;
+            edge.targetHandle = "in-" + dstNode.data.inEdgeNum;
+            dstNode.data.inEdgeNum += 1;
+
+            newEdges.push(edge);
+        };
+
+
+        newNodes = newNodes.map((node) => {
+            let maxHandles = node.data.inEdgeNum > node.data.outEdgeNum ? node.data.inEdgeNum : node.data.outEdgeNum;
+            node.style = { ...node.style, height: (displayHandleMargin + maxHandles * displayHandleOffset) + "px" };
+            return node;
+        })
+
+        console.log("display nodes", newNodes)
         setDisplayNodes(newNodes);
         setDisplayEdges(newEdges);
     };
+
+    const updateByPreview = () => {
+        let newNodes = [...nodes];
+        for (const displayNode of displayNodes) {
+            let node = newNodes.find((n) => n.id === displayNode.id);
+            node.data.representLabel = displayNode.data.label;
+        };
+
+        setNodes(newNodes);
+    };
+
+    const generateFinalChart = () => {
+        let newDisplayNodes = [...displayNodes];
+        newDisplayNodes = newDisplayNodes.map((n) => {
+            n.style = { ...n.style, backgroundColor: "white" };
+            return n;
+        });
+
+        setDisplayNodes(newDisplayNodes);
+    }
 
     const createNewNode = (position, type) => {
         let zIndex;
@@ -561,10 +633,10 @@ const FlowChart = forwardRef((props, ref) => {
     const onConfirmRepresentativeNode = () => {
         let newNodes = [...nodes];
         let parent = newNodes.find((n) => n.data.children?.includes(representNode.id));
-        parent.data.representative = representNode.data.label;
+        parent.data.representative = representNode.id;
         parent.data.children = parent.data.children.filter((c) => c !== representNode.id);
         parent.data.children.unshift(representNode.id);
-        
+
         newNodes = updateGroups(newNodes);
         let newEdges = hiddenChildEdges(newNodes, edges);
         setNodes(newNodes);
@@ -608,8 +680,8 @@ const FlowChart = forwardRef((props, ref) => {
                 hidden: (srcNode.id === dstNode.id) || (srcNodeParent && dstNodeParent && (srcNodeParent === dstNodeParent)) ? true : false,
                 source: srcNodeParent ? srcNodeParent.id : srcNode.id,
                 target: dstNodeParent ? dstNodeParent.id : dstNode.id,
-                sourceHandle: "source-" + (srcNodeParent? srcNodeParent.data.children.indexOf(e.originalSource): srcNode.data.children?.indexOf(e.originalSource)),
-                targetHandle: "target-" + (dstNodeParent? dstNodeParent.data.children.indexOf(e.originalTarget): dstNode.data.children?.indexOf(e.originalTarget)),
+                sourceHandle: "source-" + (srcNodeParent ? srcNodeParent.data.children.indexOf(e.originalSource) : srcNode.data.children?.indexOf(e.originalSource)),
+                targetHandle: "target-" + (dstNodeParent ? dstNodeParent.data.children.indexOf(e.originalTarget) : dstNode.data.children?.indexOf(e.originalTarget)),
             };
 
             return e;
@@ -619,29 +691,29 @@ const FlowChart = forwardRef((props, ref) => {
     };
 
     useEffect(() => {
-            const colors = d3.scaleOrdinal()
+        const colors = d3.scaleOrdinal()
             .domain(nodes.map(d => d.id))
             .range(colorPalette);
 
-            setNodes((nodes) =>
-                nodes.map((node) => {
-                    if (node.id === target?.id) {
-                        node.style = { ...node.style, backgroundColor: highlightColor };
-                    } else {
-                        let color;
-                        if (!node.parentNode || node.id === chartSelection?.id) {
-                            color = colors(node.id);
-                        }
-                        else{
-                            color = stateNodeStyle.backgroundColor;
-                        }
-                        node.style = { ...node.style, backgroundColor: color };
+        setNodes((nodes) =>
+            nodes.map((node) => {
+                if (node.id === target?.id) {
+                    node.style = { ...node.style, backgroundColor: highlightColor };
+                } else {
+                    let color;
+                    if (!node.parentNode || node.id === chartSelection?.id) {
+                        color = colors(node.id);
                     }
+                    else {
+                        color = stateNodeStyle.backgroundColor;
+                    }
+                    node.style = { ...node.style, backgroundColor: color };
+                }
 
-                    return node;
-                })
-            );   
-        
+                return node;
+            })
+        );
+
     }, [target]);
 
     const onDragStart = (event, nodeType) => {
@@ -659,9 +731,9 @@ const FlowChart = forwardRef((props, ref) => {
             // Open new window
             const newWindow = open();
             // Safer version of document.write
-            document.write=function(s){
+            document.write = function (s) {
                 var scripts = document.getElementsByTagName('script');
-                var lastScript = scripts[scripts.length-1];
+                var lastScript = scripts[scripts.length - 1];
                 lastScript.insertAdjacentHTML("beforebegin", s);
             }
             // Write our page content to the newly opened page
@@ -732,7 +804,7 @@ const FlowChart = forwardRef((props, ref) => {
                     fitView
                 >
                     <Panel position="top-right">
-                        <button onClick={() => onLayout(nodes, edges)}>Layout</button>
+                        {/* <button onClick={() => onLayout(nodes, edges)}>Layout</button> */}
                         <button onClick={exportDiagram}>Export</button>
                     </Panel>
                     <Background />
@@ -760,7 +832,7 @@ const FlowChart = forwardRef((props, ref) => {
                     fitView
                 >
                     <Panel position="top-right">
-                        <button onClick={() => onLayout(nodes, edges)}>Layout</button>
+                        {/* <button onClick={() => onLayout(nodes, edges)}>Layout</button> */}
                         <button onClick={exportDiagram}>Export</button>
                         <div className='mode-node-div' onDragStart={(event) => onDragStart(event, 'semanticNode')} draggable>
                             State Group
@@ -780,6 +852,7 @@ const FlowChart = forwardRef((props, ref) => {
                     onNodesChange={onDisplayNodesChange}
                     onEdgesChange={onDisplayEdgesChange}
                     onInit={setReactFlowInstance}
+                    onNodeClick={onDisplayNodeClick}
                     fitView
                 >
                     <Panel position="top-right">
@@ -799,6 +872,21 @@ const FlowChart = forwardRef((props, ref) => {
                 <DialogActions>
                     <Button variant="outlined" color="error" onClick={onCloseDialog}>Cancel</Button>
                     <Button variant="outlined" color="primary" onClick={onConfirmRepresentativeNode}>Confirm</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={openPreview}>
+                <DialogTitle>Preview is Ready</DialogTitle>
+                <DialogActions>
+                    <Button variant="outlined" color="primary" onClick={confirmPreview}>See Preview</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={closePreview}>
+                <DialogTitle>Save Modification and Go back?</DialogTitle>
+                <DialogActions>
+                    <Button variant="outlined" color="primary" onClick={confirmClosePreview}>Save</Button>
+                    <Button variant="outlined" color="error" onClick={() => setClosePreview(false)}>Cancel</Button>
                 </DialogActions>
             </Dialog>
         </div>

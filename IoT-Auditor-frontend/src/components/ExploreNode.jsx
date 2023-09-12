@@ -6,9 +6,13 @@ export default function ExploreNode(props) {
   let { data } = props;
 
   return (
-    <div style={{ zIndex: stateZIndex }}>
+    <div style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center", zIndex: stateZIndex
+    }}>
       <Handle type="target" position={Position.Left} />
-      <p className="m-auto" style={{ fontWeight: 'bold' }}>{data.label}</p>
+      <p className="m-auto" style={{ fontFamily: "Times New Roman", fontSize: 30, fontWeight: 'bold' }}>{data.label}</p>
       <Handle type="source" position={Position.Right} />
     </div>
   );
