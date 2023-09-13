@@ -295,7 +295,7 @@ export default function Board(props) {
                                 return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
                                         <div className="table-div">
-                                            <InstructionTable instructions={instructions} setInstructions={setInstructions} addAction={addAction} status={status} />
+                                            <InstructionTable className="instruction-table" instructions={instructions} setInstructions={setInstructions} addAction={addAction} status={status} />
                                         </div>
                                         <div className="action-div">
                                             <InteractionRecorder ref={interactionRecorderRef} board={board} chart={chart} createNode={createNode}

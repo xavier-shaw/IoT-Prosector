@@ -201,35 +201,35 @@ const InteractionRecorder = forwardRef((props, ref) => {
                 <div className='operation-div'>
                     <div>
                         {status === "start" &&
-                            <h4 style={{ fontFamily: "Times New Roman" }}>Please start a new chain</h4>
+                            <h4 style={{ fontFamily: "Times New Roman" }}>Please start a new chain.</h4>
                         }
-                        <Button variant="outlined" color='success' sx={{ fontWeight: "bold",  fontSize: 20, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
-                            Start a new action chain
+                        <Button variant="outlined" color='success' sx={{ fontWeight: "bold",  fontSize: 18, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
+                            Start a new chain
                         </Button>
                         {status !== "start" &&
                             <>
-                                <h4 style={{ fontFamily: "Times New Roman" }}>Action Chain: #{chainNum}</h4>
+                                <h4 style={{ fontFamily: "Times New Roman" }}>Chain: #{chainNum}</h4>
                                 {(() => {
                                     switch (status) {
                                         case "base state": // record a state
                                             return (
                                                 <>
                                                     <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {state}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please start recording state</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please start recording the state.</h4>
                                                 </>
                                             );
                                         case "state": // record a state
                                             return (
                                                 <>
                                                     <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please start recording state</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please start recording state.</h4>
                                                 </>
                                             );
                                         case "choose action": // choose an action
                                             return (
                                                 <>
                                                     <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please choose an action</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Please choose an action.</h4>
                                                 </>
                                             );
                                         case "action": // record an action
@@ -309,12 +309,6 @@ const InteractionRecorder = forwardRef((props, ref) => {
             </Dialog>
 
             <Dialog open={openActionDialog}>
-                {/* let user label the state and show user the action
-                    highlight the table row when its recording ?
-                    show the labeled state and action belowe the camera
-                    a recording <=> stop recording "action"/"state" button
-                    a start a new chain button => record base state 
-                */}
                 <DialogTitle>Label the Next State</DialogTitle>
                 <DialogContent>
                     <div style={{ padding: "10px", display: 'flex', justifyContent: "space-between" }}>
