@@ -63,7 +63,7 @@ min_currents = []
 times = []
 start_time = 0
 finish_write = True
-emanation_sweep = 250
+emanation_sweep = 400
 
 sample_num = 150
 group_cnt = 10
@@ -577,11 +577,18 @@ def get_emanation_data(state_idx, wait=False):
     global finish_write
     file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
     while not os.path.exists(file_name):
-        continue
-    time.sleep(2)
+        time.sleep(5)
+        
     emanation_result = []
+    power_results = []
     with open(file_name, 'rb') as file:
-        power_result = pickle.load(file)
+        try:
+            while True:
+                power_results.append(pickle.load(file))
+        except EOFError:
+            pass
+
+    for power_result in power_results:
         for final_power in power_result:
             emanation_res = np.array([
                 np.mean(final_power),
@@ -719,7 +726,7 @@ def build_final_collage_node(node_collage_dict, final_distribution_dict, group_i
 
 # ===========================================================================================================
 def data_processing(states, raw_power_data, raw_emanation_data):
-    global data_points
+    global data_points, emanation_sweep
     max_len = 11  # largest length of emanation vector
 
     # list with (number of states x  10), 10 means each state will have 10 data features
@@ -777,6 +784,7 @@ def data_processing(states, raw_power_data, raw_emanation_data):
 
 
 def predict_data_processing(power_data, emanation_data):
+    global emanation_sweep
     powers = []  # one iot state will have 10 examples which is averaged over 20 power data points
     i = 0
     num = 20

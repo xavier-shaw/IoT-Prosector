@@ -273,7 +273,9 @@ export default function Board(props) {
                         <>
                             <Button className="me-2" size="small" color="primary" variant="contained" disabled={collageFinish} onClick={startCollage}>Collage</Button>
                             <h6>by our algorithm first, then collage by yourself, and </h6>
-                            <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>Preview & Annotate</Button>
+                            <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>
+                                {annotated? "Close Preview" : "Preview & Annotate" }
+                                </Button>
                             <h6>the final state diagram.</h6>
                         </>
                     }

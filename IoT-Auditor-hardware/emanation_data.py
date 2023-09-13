@@ -20,7 +20,7 @@ def emanation_data(idx):
         fft_peaks =  FFTpeaks.getEmanations_raw(full_path_2)
         # q.put(fft_peaks)
         file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + idx + ".pkl"
-        with open(file_name, 'wb') as file:
+        with open(file_name, 'ab') as file:
             pickle.dump(fft_peaks, file)
         return True
     

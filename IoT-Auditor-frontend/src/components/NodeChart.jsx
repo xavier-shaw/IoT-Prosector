@@ -217,21 +217,6 @@ const FlowChart = forwardRef((props, ref) => {
         setNodes(newNodes);
     };
 
-    const onDisplayNodeClick = (evt, node) => {
-        let newNodes = [...displayNodes];
-        let currentNode = newNodes.find((n) => n.id === node.id);
-        if (chartSelection?.id === node.id) {
-            currentNode.style = { ...currentNode.style, backgroundColor: "white" };
-            setChartSelection(null);
-        }
-        else {
-            currentNode.style = { ...currentNode.style, backgroundColor: "yellow" };
-            setChartSelection(currentNode);
-        };
-
-        setDisplayNodes(newNodes);
-    };
-
     const layout = (newNodes, newEdges, preview) => {
         let nextRowY = 0;
         let index = 0;
@@ -376,6 +361,8 @@ const FlowChart = forwardRef((props, ref) => {
         if (!preview) {
             generatePreviewChart();
             setOpenPreview(true);
+            setAnnotated(false);
+
         }
         else {
             updateByPreview();
@@ -902,10 +889,10 @@ const FlowChart = forwardRef((props, ref) => {
             </Dialog>
 
             <Dialog open={closePreview}>
-                <DialogTitle>Save Modification and Go back?</DialogTitle>
+                <DialogTitle>Go back?</DialogTitle>
                 <DialogActions>
-                    <Button variant="outlined" color="primary" onClick={confirmClosePreview}>Save</Button>
-                    <Button variant="outlined" color="error" onClick={() => setClosePreview(false)}>Cancel</Button>
+                    <Button variant="outlined" color="primary" onClick={confirmClosePreview}>Yes</Button>
+                    <Button variant="outlined" color="error" onClick={() => setClosePreview(false)}>No</Button>
                 </DialogActions>
             </Dialog>
         </div>

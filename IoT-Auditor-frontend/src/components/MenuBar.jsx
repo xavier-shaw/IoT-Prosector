@@ -50,7 +50,7 @@ export default function MenuBar(props) {
                     </div>
                     <div className='ms-auto'>
                         <Stack spacing={2} direction={"row"}>
-                            <Button
+                            {/* <Button
                                 variant="outlined"
                                 color="error"
                                 endIcon={<PlayArrowIcon />}
@@ -58,7 +58,7 @@ export default function MenuBar(props) {
                                 onClick={handleClickBack}
                             >
                                 Back
-                            </Button>
+                            </Button> */}
                             <Button
                                 variant="contained"
                                 color="primary"
