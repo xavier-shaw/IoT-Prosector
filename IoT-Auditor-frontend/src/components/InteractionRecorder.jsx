@@ -236,8 +236,8 @@ const InteractionRecorder = forwardRef((props, ref) => {
                                             return (
                                                 <>
                                                     <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Action: {action}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Next State: {state}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Action: {action}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Next State: {state}</h4>
                                                 </>
                                             );
                                         default:

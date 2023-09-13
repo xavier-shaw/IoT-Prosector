@@ -64,7 +64,7 @@ export default function MenuBar(props) {
                                 color="primary"
                                 endIcon={<PlayArrowIcon />}
                                 onClick={handleClickNext}
-                                disabled={step === 1 && !annotated}
+                                disabled={step === 1 && annotated !== 2}
                             >
                                 {step !== 2 && "Next"}
                                 {step === 2 && "Finish"}

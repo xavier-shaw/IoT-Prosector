@@ -31,7 +31,7 @@ export default function Board(props) {
     const [status, setStatus] = useState("start");
     const [openDialog, setOpenDiaglog] = useState(false);
     const [waitForProcessing, setWaitForProcessing] = useState(false);
-    const [annotated, setAnnotated] = useState(false);
+    const [annotated, setAnnotated] = useState(0);
     const [waitForTraining, setWaitForTraining] = useState(false);
     const [finishProcess, setFinishProcess] = useState(false);
     const [predictStates, setPredictStates] = useState(null);
@@ -51,7 +51,7 @@ export default function Board(props) {
                 setChart(board_data.chart);
                 setInstructions(board_data.data.instructions);
                 setStateSequence(board_data.data?.stateSequence);
-                setActionSequence(board.data?.actionSequence)
+                setActionSequence(board_data.data?.actionSequence)
                 console.log("board data", board_data);
                 setBoard(board_data);
             });
@@ -143,7 +143,8 @@ export default function Board(props) {
         let newChart = nodeChartRef.current.updateAnnotation();
         newBoard.chart = newChart;
         newBoard.data.instructions = instructions;
-        newBoard.data.exploreSequence = stateSequence;
+        newBoard.data.stateSequence = stateSequence;
+        newBoard.data.actionSequence = actionSequence;
         setBoard(newBoard);
         console.log("ready to update board", newBoard);
         await axios
@@ -279,7 +280,7 @@ export default function Board(props) {
                             <Button className="me-2" size="small" color="primary" variant="contained" disabled={collageFinish} onClick={startCollage}>Collage</Button>
                             <h6>by our algorithm first, then collage by yourself, and </h6>
                             <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>
-                                {annotated? "Close Preview" : "Preview & Annotate" }
+                                {annotated === 1? "Close Preview" : "Preview & Annotate" }
                                 </Button>
                             <h6>the final state diagram.</h6>
                         </>
@@ -294,7 +295,7 @@ export default function Board(props) {
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={7} className="panel-div">
                         <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step} setAnnotated={setAnnotated}
-                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictState={setPredictStates}/>
+                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictStates={setPredictStates}/>
                     </Grid>
                     {(() => {
                         switch (step) {
@@ -320,13 +321,8 @@ export default function Board(props) {
                             case 2:
                                 return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
-                                        <div className="table-div">
-                                            <InstructionTable instructions={instructions} setInstructions={setInstructions} addAction={addAction} status={status} />
-                                        </div>
-                                        <div className="action-div">
                                             <VerificatopmPanel ref={verificationPanelRef} board={board} chart={chart} status={status} setStatus={setStatus} 
-                                                verifyState={verifyState} predictState={predictStates} stateSequence={stateSequence} actionSequence={actionSequence}/>
-                                        </div>
+                                                predictStates={predictStates} stateSequence={stateSequence} actionSequence={actionSequence}/>
                                     </Grid>
                                 )
                             default:

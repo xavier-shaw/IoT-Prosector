@@ -359,12 +359,9 @@ const FlowChart = forwardRef((props, ref) => {
         if (!preview) {
             generatePreviewChart();
             setOpenPreview(true);
-            setAnnotated(false);
-
         }
         else {
             updateByPreview();
-            setAnnotated(true);
             setClosePreview(true);
         }
     };
@@ -372,11 +369,12 @@ const FlowChart = forwardRef((props, ref) => {
     const confirmPreview = () => {
         setOpenPreview(false);
         setPreview(true);
+        setAnnotated(1);
     }
 
     const confirmClosePreview = () => {
         setClosePreview(false);
-        setAnnotated(true);
+        setAnnotated(2);
         setPreview(false);
     }
 

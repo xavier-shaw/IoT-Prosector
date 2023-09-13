@@ -1,14 +1,16 @@
 import React, { forwardRef, useImperativeHandle, useState, useEffect } from "react";
 import OnlinePredictionIcon from '@mui/icons-material/OnlinePrediction';
-import { Button, Dialog, DialogActions, DialogTitle, FormControl, InputLabel, LinearProgress, MenuItem, Select } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogTitle, FormControl, InputLabel, LinearProgress, MenuItem, Select, Skeleton } from "@mui/material";
 import "./VerificationPanel.css";
 import axios from "axios";
+import * as d3 from "d3";
 import { v4 as uuidv4 } from "uuid";
 import { colorPalette } from "../shared/chartStyle";
 
 const VerificatopmPanel = forwardRef((props, ref) => {
     const { board, chart, status, setStatus, stateSequence, actionSequence, predictStates } = props;
     const [action, setAction] = useState("None");
+    const [previousState, setPreviousState] = useState("");
     const [prediction, setPrediction] = useState(null);
     const [wrongPrediction, setWrongPrediction] = useState(false);
     const [correctState, setCorrectState] = useState("");
@@ -17,8 +19,7 @@ const VerificatopmPanel = forwardRef((props, ref) => {
     const graphHeight = 540;
 
     useImperativeHandle(ref, () => ({
-        setAction,
-        setDoingAction
+        setAction
     }));
 
     const startPrediction = () => {
@@ -29,6 +30,7 @@ const VerificatopmPanel = forwardRef((props, ref) => {
         setAction(action);
         setPrediction(predictionInfo);
         drawScatterplot(predictionInfo);
+        setStatus("verifying");
     };
 
     const onPredictionCorrect = () => {
@@ -42,6 +44,8 @@ const VerificatopmPanel = forwardRef((props, ref) => {
             })
             .then((resp) => {
                 console.log(resp);
+                setStatus("predicting");
+                setPreviousState(prediction?.predictState?.data?.representLabel);
             })
     };
 
@@ -63,8 +67,10 @@ const VerificatopmPanel = forwardRef((props, ref) => {
                 }
             })
             .then((resp) => {
+                setPreviousState(correctState);
                 setWrongPrediction(false);
                 setCorrectState("");
+                setStatus("predicting");
             })
     };
 
@@ -94,18 +100,18 @@ const VerificatopmPanel = forwardRef((props, ref) => {
             .attr("transform", `translate(${0}, ${margin})`)
 
         // Calculate the total width of legend items and labels
-        const legendItems = legend
-            .selectAll(".legend-item")
-            .data(parentNodes)
-            .enter()
-            .append("g")
-            .attr("class", "legend-item");
+        // const legendItems = legend
+        //     .selectAll(".legend-item")
+        //     .data(parentNodes)
+        //     .enter()
+        //     .append("g")
+        //     .attr("class", "legend-item");
 
-        legendItems
-            .append("rect")
-            .attr("fill", d => color(d.id))
-            .attr("width", cubeSize)
-            .attr("height", cubeSize)
+        // legendItems
+        //     .append("rect")
+        //     .attr("fill", d => color(d.id))
+        //     .attr("width", cubeSize)
+        //     .attr("height", cubeSize)
 
         // legendItems
         //     .append("text")
@@ -116,13 +122,13 @@ const VerificatopmPanel = forwardRef((props, ref) => {
 
         // Calculate the total width of legend items and labels
         // Adjust the position of each label to prevent overlap
-        let xOffset = 0;
-        let yOffset = 0;
-        const totalLegendWidth = legendItems.nodes().reduce((totalWidth, node) => {
-            const bbox = node.querySelector('text').getBBox();
-            d3.select(node).attr("transform", `translate(${xOffset}, ${yOffset})`)
-            xOffset += bbox.width + cubeSize + legendMargin;
-        }, 0);
+        // let xOffset = 0;
+        // let yOffset = 0;
+        // const totalLegendWidth = legendItems.nodes().reduce((totalWidth, node) => {
+        //     const bbox = node.querySelector('text').getBBox();
+        //     d3.select(node).attr("transform", `translate(${xOffset}, ${yOffset})`)
+        //     xOffset += bbox.width + cubeSize + legendMargin;
+        // }, 0);
 
         let xScaler = d3.scaleLinear()
             .domain([d3.min(data, d => d[0]), d3.max(data, d => d[0])])
@@ -162,10 +168,10 @@ const VerificatopmPanel = forwardRef((props, ref) => {
             })
             .attr("transform", d => `translate(${xScaler(d[0])},${yScaler(d[1])})`)
             .attr("r", 7);
-
+            
         svg
             .append("circle")
-            .attr("transform", `translate(${xScaler(prediction.data[0])}),${yScaler(prediction.data[1])}`)
+            .attr("transform", `translate(${xScaler(prediction.data[0])},${yScaler(prediction.data[1])})`)
             .attr("r", 7) // Adjust the radius as needed
             .style("fill", "black"); // You can set the fill color as desired
     };
@@ -173,66 +179,79 @@ const VerificatopmPanel = forwardRef((props, ref) => {
     return (
         <div className="verification-panel-div">
             <h4>Verification</h4>
-            <div className="graph-panel">
+            <div id="graph-panel">
                 <Skeleton className="m-auto" variant="rectangular" animation="wave" width={graphWidth} height={graphHeight} />
             </div>
             <div>
+
                 {(() => {
-                    switch (verifyIdx) {
-                        case -1:
-                            return (
-                                <div>
-                                </div>
-                            )
-                        default:
-                            return (
-                                <div>
-                                    {prediction?.predictState?.data?.status !== "base state" && action !== "base state action" &&
-                                        <div>
-                                            <h4 style={{ fontFamily: "Times New Roman" }}>Previous Predicted State is: {prediction?.predictState?.data?.representLabel}</h4>
-                                            <h4 style={{ fontFamily: "Times New Roman" }}>Your Action is: {action}</h4>
-                                        </div>
-                                    }
-                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current Predicted State is: {prediction?.predictState?.data?.representLabel}</h4>
-                                </div>
-                            )
+                    if (verifyIdx >= stateSequence.length) {
+                        return (
+                            <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold"}}>You have finished the verification.</h4>
+                        )
+                    }
+                    else if (status === "verifying") {
+                        switch (verifyIdx) {
+                            case -1:
+                                return (
+                                    <div>
+                                    </div>
+                                )
+                            default:
+                                return (
+                                    <div>
+                                        {prediction?.predictState?.data?.status !== "base state" && action !== "base state action" &&
+                                            <div>
+                                                <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Previous Predicted State is: {previousState}</h4>
+                                                <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Your Action is: {action}</h4>
+                                            </div>
+                                        }
+                                        {/* <h4 style={{ fontFamily: "Times New Roman" }}>Current Predicted State is: {prediction?.predictState?.data?.representLabel}</h4> */}
+                                    </div>
+                                )
+                        }
+                    }
+                    else if (status === "predicting") {
+                        return (
+                            <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold"}}>Please start / continue to next prediction.</h4>
+                        )
                     }
                 })()}
 
                 <Button className="m-2" sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
-                    onClick={startPrediction} startIcon={<OnlinePredictionIcon />}>
+                    onClick={startPrediction} disabled={status === "verifying" || verifyIdx >= stateSequence.length} startIcon={<OnlinePredictionIcon />}>
                     {verifyIdx === -1? "Start State Prediction" : "Next State Prediction"}
                 </Button>
 
                 {
                     status === "verifying" &&
                     <div>
-                        {!wrongPrediction &&
+                        {/* {!wrongPrediction &&
                             <div>
                                 <h4>Is the prediction of your model correct?</h4>
                                 <Button className="me-5" variant="outlined" color="success" onClick={onPredictionCorrect}>Yes</Button>
                                 <Button variant="outlined" color="error" onClick={onPredictionWrong}>No</Button>
                             </div>
-                        }
-                        {wrongPrediction &&
-                            <div>
-                                <h4>Please select the correct state: </h4>
-                                <FormControl>
-                                    <InputLabel>Correct State</InputLabel>
-                                    <Select
-                                        value={correctState}
-                                        onChange={handleSelectChange}
-                                        label="Correct State"
-                                        sx={{ width: "200px" }}
-                                    >
-                                        {chart?.nodes?.filter((n) => !n.parentNode).map((node, i) => (
-                                            <MenuItem key={i} value={node.data.representLabel}>{node.data.representLabel}</MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                                <Button className="ms-5" variant="outlined" color="primary" onClick={submitCorrectState}>Submit</Button>
-                            </div>
-                        }
+                        } */}
+                        {/* {wrongPrediction && */}
+                        <div>
+                            <h4>Please select the your prediction for current state: </h4>
+                            <FormControl>
+                                <InputLabel>Prediction</InputLabel>
+                                <Select
+                                    value={correctState}
+                                    onChange={handleSelectChange}
+                                    label="Correct State"
+                                    sx={{ width: "200px" }}
+                                >
+                                    {chart?.nodes?.filter((n) => !n.parentNode).map((node, i) => (
+                                        <MenuItem key={i} value={node.data.representLabel}>{node.data.representLabel}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            <Button className="ms-5" variant="outlined" color="primary" onClick={submitCorrectState}>Submit</Button>
+                        </div>
+                        {/* } */}
                     </div>
                 }
             </div>

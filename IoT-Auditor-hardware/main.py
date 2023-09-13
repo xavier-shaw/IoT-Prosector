@@ -232,8 +232,10 @@ class DataModel(BaseModel):
 
 
 class ProcessedDataModel(BaseModel):
-    tsne_data_labels: List[str]
-    tsne_data_points: List[List[float]]
+    tsne_data_labels_train: List[str]
+    tsne_data_points_train: List[List[float]]
+    tsne_data_labels_test: List[str]
+    tsne_data_points_test: List[List[float]]
     state_cluster_dict: Dict[str, List[int]]
     cluster_cnt: int
 
@@ -354,8 +356,8 @@ async def classfication(data: DataModel = Body(...)):
         "matrix": corr_matrix.tolist(),
         "clusters": clusters,
         "groups": groups,
-        "data_points": tsne_data_points_train,
-        "data_labels": tsne_data_labels_train
+        "data_points": tsne_data_points_train.tolist(),
+        "data_labels": tsne_data_labels_train.tolist()
     }
 
     return JSONResponse(content=jsonable_encoder(resp))
@@ -760,7 +762,7 @@ def data_processing(states, raw_power_data, raw_emanation_data):
 
     # interpolating the emanations
     # 10 indicates that one iot state has 10 examples
-    emanations_fea = np.zeros((len(states)*10, max_len))
+    emanations_fea = np.zeros((len(states)*25, max_len))
     interp_index = 0
     for state_idx in range(len(states)):  # interpolating emanation vectors
         state_emanation = raw_emanation_data[state_idx]
