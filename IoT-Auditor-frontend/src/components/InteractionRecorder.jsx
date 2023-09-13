@@ -65,10 +65,15 @@ const InteractionRecorder = forwardRef((props, ref) => {
     }))
 
     useEffect(() => {
-        if (recording !== "") {
+        if (recording === "state") {
             setTimeout(() => {
                 endRecording();
             }, 5300);
+        }
+        else if (recording === "action") {
+            setTimeout(() => {
+                endRecording();
+            }, 2500);
         }
     }, [recording])
 
@@ -253,9 +258,9 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
                     <div>
                         {recording === "state" ?
-                            <Button variant="contained" color="error" sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
-                                onClick={endRecording} startIcon={<VideocamOffIcon />}>
-                                End State Recording
+                            <Button variant="contained" sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
+                                startIcon={<VideocamOffIcon />}>
+                                Recording
                             </Button>
                             :
                             <Button variant="outlined" disabled={(status !== "state" && status !== "base state") || chainNum === 0}
@@ -264,9 +269,9 @@ const InteractionRecorder = forwardRef((props, ref) => {
                             </Button>
                         }
                         {recording === "action" ?
-                            <Button className='mt-2' variant="contained" color="error" sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
-                                onClick={endRecording} startIcon={<VideocamOffIcon />}>
-                                End Action Recording
+                            <Button className='mt-2' variant="contained" sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}
+                                startIcon={<VideocamOffIcon />}>
+                                Recording
                             </Button>
                             :
                             <Button className='mt-2' variant="outlined" disabled={status !== "action"} sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }}

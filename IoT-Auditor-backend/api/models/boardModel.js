@@ -3,7 +3,7 @@ var Schema = mongoose.Schema;
 
 const GOOGLE_HOME_INSTRUCTIONS = [
   {
-    "function": "Turn on",
+    "function": "Turn off",
     "interaction": "Plug power cable",
     "image": "/plug.jpg"
   },
@@ -14,13 +14,8 @@ const GOOGLE_HOME_INSTRUCTIONS = [
   },
   {
     "function": "Start request",
-    "interaction": "Press and hold",
-    "image": "/press_hold.jpg"
-  },
-  {
-    "function": "Start request",
     "interaction": "Say keyword",
-    "image": ""
+    "image": "/press_hold.jpg"
   },
   {
     "function": "Do request",

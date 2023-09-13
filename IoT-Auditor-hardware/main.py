@@ -255,8 +255,8 @@ async def load_processed_data(data: ProcessedDataModel = Body(...)):
 
 @app.post("/waitForDataProcessing")
 async def wait_for_data_processing(data: DataModel = Body(...)):
-    global processes, finished_processes
-    while len(finished_processes) != len(processes):
+    global finish_write
+    while not finish_write:
         time.sleep(1)
 
     finished_processes = []

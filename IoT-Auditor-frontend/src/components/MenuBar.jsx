@@ -25,7 +25,7 @@ export default function MenuBar(props) {
                             color="primary"
                             endIcon={<PlayArrowIcon />}
                             onClick={onSave}
-                            disabled={step == 2}
+                            disabled={step == 2 || annotated === 1}
                         >
                             Save
                         </Button>
