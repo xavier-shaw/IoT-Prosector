@@ -23,7 +23,6 @@ export default function Board(props) {
     const [board, setBoard] = useState({});
     const [step, setStep] = useState(0);
     const stages = ["Interaction", "Collage", "Verification"];
-    const [isSensing, setIsSensing] = useState(-1);
     const [chart, setChart] = useState({});
     const [instructions, setInstructions] = useState([]);
     const [prevNode, setPrevNode] = useState(null);
@@ -35,8 +34,10 @@ export default function Board(props) {
     const [annotated, setAnnotated] = useState(false);
     const [waitForTraining, setWaitForTraining] = useState(false);
     const [finishProcess, setFinishProcess] = useState(false);
-    const [predictState, setPredictState] = useState(null);
+    const [predictStates, setPredictStates] = useState(null);
     const [collageFinish, setCollageFinish] = useState(false);
+    const [stateSequence, setStateSequence] = useState([]);
+    const [actionSequence, setActionSequence] = useState([]);
     const nodeChartRef = useRef(null);
     const collagePanelRef = useRef(null);
     const interactionRecorderRef = useRef(null);
@@ -49,6 +50,8 @@ export default function Board(props) {
                 let board_data = resp.data[0];
                 setChart(board_data.chart);
                 setInstructions(board_data.data.instructions);
+                setStateSequence(board_data.data?.stateSequence);
+                setActionSequence(board.data?.actionSequence)
                 console.log("board data", board_data);
                 setBoard(board_data);
             });
@@ -75,8 +78,10 @@ export default function Board(props) {
                         let newBoard = { ...board };
                         newBoard.data = {
                             ...newBoard.data,
-                            tsne_data_labels: resp.data.tsne_data_labels,
-                            tsne_data_points: resp.data.tsne_data_points,
+                            tsne_data_labels_train: resp.data.tsne_data_labels_train,
+                            tsne_data_points_train: resp.data.tsne_data_points_train, 
+                            tsne_data_labels_test: resp.data.tsne_data_labels_test,
+                            tsne_data_points_test: resp.data.tsne_data_points_test,
                             state_cluster_dict: resp.data.state_cluster_dict,
                             cluster_cnt: resp.data.cluster_cnt,
                             processed: true
@@ -87,8 +92,10 @@ export default function Board(props) {
             }
             else {
                 axios.post(window.HARDWARE_ADDRESS + "/loadProcessedData", {
-                    tsne_data_labels: board.data.tsne_data_labels,
-                    tsne_data_points: board.data.tsne_data_points,
+                    tsne_data_labels_train: board.data.tsne_data_labels_train,
+                    tsne_data_points_train: board.data.tsne_data_points_train, 
+                    tsne_data_labels_test: board.data.tsne_data_labels_test,
+                    tsne_data_points_test: board.data.tsne_data_points_test,
                     state_cluster_dict: board.data.state_cluster_dict,
                     cluster_cnt: board.data.cluster_cnt,
                 })
@@ -105,7 +112,8 @@ export default function Board(props) {
                 device: board.title,
                 nodes: newChart.nodes
             })
-            .then((resp) => {
+            .then(async (resp) => {
+                await nodeChartRef.current.predictState();
                 setFinishProcess(true);
             })
         }
@@ -133,9 +141,9 @@ export default function Board(props) {
     const onSave = async () => {
         let newBoard = { ...board };
         let newChart = nodeChartRef.current.updateAnnotation();
-        let newInstructions = instructions;
         newBoard.chart = newChart;
-        newBoard.data.instructions = newInstructions;
+        newBoard.data.instructions = instructions;
+        newBoard.data.exploreSequence = stateSequence;
         setBoard(newBoard);
         console.log("ready to update board", newBoard);
         await axios
@@ -196,12 +204,6 @@ export default function Board(props) {
         nodeChartRef.current.previewChart();
     };
 
-    const verifyState = async (idx) => {
-        console.log("verify", idx)
-        await nodeChartRef.current.predictState(idx);
-        verificationPanelRef.current.endStatePrediction();
-    };
-
     const createNode = (nodeIdx, status, state, action, edgeIdx) => {
         let newChart = { ...chart };
         let idx = "#" + (newChart.nodes.length + 1) + " ";
@@ -228,6 +230,9 @@ export default function Board(props) {
             style: stateNodeStyle,
             zIndex: stateZIndex
         };
+
+        setStateSequence((prev) => ([...prev, nodeIdx]));
+        setActionSequence((prev) => ([...prev, action]));
         newChart.nodes.push(newState);
         setPrevNode(newState);
         setChart(newChart);
@@ -289,7 +294,7 @@ export default function Board(props) {
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={7} className="panel-div">
                         <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step} setAnnotated={setAnnotated}
-                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictState={setPredictState}/>
+                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictState={setPredictStates}/>
                     </Grid>
                     {(() => {
                         switch (step) {
@@ -320,7 +325,7 @@ export default function Board(props) {
                                         </div>
                                         <div className="action-div">
                                             <VerificatopmPanel ref={verificationPanelRef} board={board} chart={chart} status={status} setStatus={setStatus} 
-                                                verifyState={verifyState} predictState={predictState}/>
+                                                verifyState={verifyState} predictState={predictStates} stateSequence={stateSequence} actionSequence={actionSequence}/>
                                         </div>
                                     </Grid>
                                 )

@@ -30,7 +30,7 @@ const NodeChart = forwardRef((props, ref) => {
 })
 
 const FlowChart = forwardRef((props, ref) => {
-    let { board, chart, setChart, step, setAnnotated, chartSelection, setChartSelection, updateMatrix, setPredictState } = props;
+    let { board, chart, setChart, step, setAnnotated, chartSelection, setChartSelection, updateMatrix, setPredictStates } = props;
     const reactFlowWrapper = useRef(null);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -144,30 +144,28 @@ const FlowChart = forwardRef((props, ref) => {
             })
     };
 
-    const predictState = async (stateIdx) => {
+    const predictState = async () => {
         await axios
-            .get(window.HARDWARE_ADDRESS + "/predict", {
-                params: {
-                    idx: stateIdx
-                }
-            })
+            .get(window.HARDWARE_ADDRESS + "/predict")
             .then((resp) => {
-                let predictIdx = resp.data.predict_state;
-                let predictState = nodes.find((n) => n.id === predictIdx);
-                setPredictState(predictState);
-                let newNodes = [...displayNodes];
-                newNodes = newNodes.map((n) => {
-                    if (n.id === predictIdx) {
-                        n.style = {...n.style, backgroundColor: "yellow"}
-                    }
-                    else {
-                        n.style = {...n.style, backgroundColor: "white"}
-                    }
+                let predictDataPoints = resp.data.predict_data_points;
+                let predictStates = resp.data.predict_states;
+                let labels = resp.data.original_labels;
+                let predictInfoDict = {};
+                
+                predictStates = predictStates.map((id) => {
+                    let state = nodes.find((n) => n.id === id);
+                    return state;
+                })
 
-                    return n;
-                });
+                for (let index = 0; index < predictDataPoints.length; index++) {
+                    predictInfoDict[labels[index]] = {
+                        data: predictDataPoints[index],
+                        predictState: predictStates[index]
+                    }
+                }
 
-                setDisplayNodes(newNodes);
+                setPredictStates(predictInfoDict);
             })
     };
 
@@ -454,7 +452,8 @@ const FlowChart = forwardRef((props, ref) => {
 
     const updateByPreview = () => {
         let newNodes = [...nodes];
-        for (const displayNode of displayNodes) {
+        for (let index = 0; index < displayNodes.length; index++) {
+            const displayNode = displayNodes[index];
             let node = newNodes.find((n) => n.id === displayNode.id);
             node.data.representLabel = displayNode.data.label;
         };
@@ -464,8 +463,9 @@ const FlowChart = forwardRef((props, ref) => {
 
     const generateFinalChart = () => {
         let newDisplayNodes = [...displayNodes];
-        newDisplayNodes = newDisplayNodes.map((n) => {
-            n.style = { ...n.style, backgroundColor: "white" };
+        newDisplayNodes = newDisplayNodes.map((n, i) => {
+            // n.label = "#" + (i + 1) + " " + n.label;
+            // n.style = { ...n.style, backgroundColor: "white" };
             return n;
         });
 

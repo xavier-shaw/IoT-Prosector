@@ -11,6 +11,7 @@ from pymongo import MongoClient
 from urllib.parse import quote_plus
 import certifi
 import numpy as np
+import pandas as pd
 import time
 import pickle
 from collections import Counter
@@ -29,7 +30,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.metrics import confusion_matrix
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.cluster import DBSCAN
 from sklearn.metrics import accuracy_score
 from scipy.optimize import linear_sum_assignment
@@ -68,9 +69,10 @@ emanation_sweep = 400
 sample_num = 150
 group_cnt = 10
 
-data_points = []
-tsne_data_points = []
-tsne_data_labels = []
+tsne_data_points_train = []
+tsne_data_labels_train = []
+tsne_data_points_test = []
+tsne_data_labels_test = []
 state_cluster_dict = {}
 cluster_cnt = 0
 classifier = None
@@ -238,9 +240,11 @@ class ProcessedDataModel(BaseModel):
 
 @app.post("/loadProcessedData")
 async def load_processed_data(data: ProcessedDataModel = Body(...)):
-    global tsne_data_points, tsne_data_labels, state_cluster_dict, cluster_cnt
-    tsne_data_points = data.tsne_data_points
-    tsne_data_labels = data.tsne_data_labels
+    global tsne_data_points_train, tsne_data_labels_train, tsne_data_points_test, tsne_data_labels_test, state_cluster_dict, cluster_cnt
+    tsne_data_points_train = np.array(data.tsne_data_points_train)
+    tsne_data_labels_train = np.array(data.tsne_data_labels_train)
+    tsne_data_points_test = np.array(data.tsne_data_points_test)
+    tsne_data_labels_test = np.array(data.tsne_data_labels_test)
     state_cluster_dict = data.state_cluster_dict
     cluster_cnt = data.cluster_cnt
 
@@ -262,7 +266,7 @@ async def wait_for_data_processing(data: DataModel = Body(...)):
 
 
 def process_data(nodes):
-    global tsne_data_points, tsne_data_labels, state_cluster_dict, cluster_cnt
+    global tsne_data_points_train, tsne_data_labels_train, tsne_data_points_test, tsne_data_labels_test, state_cluster_dict, cluster_cnt
 
     state_nodes = [n for n in nodes if n["type"] == "stateNode"]
 
@@ -271,23 +275,24 @@ def process_data(nodes):
     states_info = []
 
     power_datas, emanation_datas, states_info = get_all_raw_data(state_nodes)
-    features, states_labels = data_processing(
+    features_train, features_test, states_labels_train, states_labels_test = data_processing(
         states_info, power_datas, emanation_datas)
-    tsne_data_points = features
-    tsne_data_labels = states_labels
+    tsne_data_points_train = features_train
+    tsne_data_labels_train = states_labels_train
+    tsne_data_points_test = features_test
+    tsne_data_labels_test = states_labels_test
 
     state_distribution_dict, best_cluster_number = cluster_states(
-        features, states_labels)
-    # data_model_hints: a dictionary that shows which data-oriented cluster the state is belonged to => hints[state_id] = cluster_id
-    # data_model_hints, group_idx = generate_collage_node(
-    #     state_distribution_dict)
+        features_train, states_labels_train)
 
     state_cluster_dict = state_distribution_dict
     cluster_cnt = best_cluster_number
 
     resp = {
-        "tsne_data_labels": tsne_data_labels,
-        "tsne_data_points": tsne_data_points,
+        "tsne_data_labels_train": tsne_data_labels_train.tolist(),
+        "tsne_data_points_train": tsne_data_points_train.tolist(),
+        "tsne_data_labels_test": tsne_data_labels_test.tolist(),
+        "tsne_data_points_test": tsne_data_points_test.tolist(),
         "state_cluster_dict": state_cluster_dict,
         "cluster_cnt": cluster_cnt
     }
@@ -324,7 +329,7 @@ def get_state_group_info(nodes):
 
 @app.post("/classification")
 async def classfication(data: DataModel = Body(...)):
-    global tsne_data_points, state_cluster_dict, cluster_cnt
+    global tsne_data_points_train, state_cluster_dict, cluster_cnt
     # To show the cohesion level inside each group and coupling level between different groups
     # X: tsne_data_points (20 * num_of_states)
     # Y: group_labels
@@ -349,8 +354,8 @@ async def classfication(data: DataModel = Body(...)):
         "matrix": corr_matrix.tolist(),
         "clusters": clusters,
         "groups": groups,
-        "data_points": tsne_data_points,
-        "data_labels": tsne_data_labels
+        "data_points": tsne_data_points_train,
+        "data_labels": tsne_data_labels_train
     }
 
     return JSONResponse(content=jsonable_encoder(resp))
@@ -358,13 +363,9 @@ async def classfication(data: DataModel = Body(...)):
 
 @app.post("/train")
 async def train_model(data: DataModel = Body(...)):
-    global data_points, tsne_data_labels, state_group_dict, classifier
+    global tsne_data_points_train, tsne_data_labels_train, state_group_dict, classifier
     nodes = data.nodes
-    state_nodes = [n for n in nodes if n["type"] == "stateNode"]
-    power_datas, emanation_datas, states_info = get_all_raw_data(state_nodes)
-    features, states_labels = data_processing(
-        states_info, power_datas, emanation_datas)
-    
+
     parentNodes = [n for n in nodes if (
         "parentNode" not in n) or (not n["parentNode"])]
     node_group_dict = {}
@@ -382,16 +383,14 @@ async def train_model(data: DataModel = Body(...)):
     X = []
     Y = []
 
-    for i in range(len(data_points)):
-        data_point = data_points[i]
-        data_label = tsne_data_labels[i]
+    for i in range(len(tsne_data_points_train)):
+        data_point = tsne_data_points_train[i]
+        data_label = tsne_data_labels_train[i]
         group_label = node_group_dict[data_label]
 
         X.append(data_point)
         Y.append(group_label)
 
-    print(X)
-    print(Y)
     clf = DecisionTreeClassifier()
     clf.fit(X, Y)
 
@@ -401,30 +400,37 @@ async def train_model(data: DataModel = Body(...)):
 
 
 @app.get("/predict")
-async def predict(idx: str):
-    global listening, avg_currents, classifier, state_group_dict
-    listening = False
-    power_data = avg_currents
-    emanation_data = get_emanation_data(idx)
-    data_features = predict_data_processing(power_data, emanation_data)
-    print("feature", data_features)
+async def predict():
+    global classifier, state_group_dict, tsne_data_points_test, tsne_data_labels_test
+    
+    # Combine X_test and y_test into a DataFrame
+    df = pd.DataFrame(tsne_data_points_test, columns=["X1", "X2"])
+    df["Label"] = tsne_data_labels_test
 
-    predict_results = classifier.predict(data_features)
+    # Group by label and calculate the average for each group
+    averages = df.groupby("Label").mean()
+
+    # Convert the resulting DataFrame back to a NumPy array (if needed)
+    average_X = averages.values
+    average_Y = averages.index 
+
+    predict_results = classifier.predict(average_X)
+
+    def map_to_dict(value):
+        return state_group_dict[value]
+
+    predict_results = np.vectorize(map_to_dict)(predict_results)
     print("result", predict_results)
 
-    counter = Counter(predict_results)
-    max_predict = max(counter.values())
-    predict_result = ""
-    for [group, times] in counter.items():
-        if times == max_predict:
-            predict_result = state_group_dict[group]
-            break
     clear_data()
 
-    resp ={
-        "predict_state": predict_result
+    resp = {
+        "predict_data_points": average_X.tolist(),
+        "predict_states": predict_results.tolist(),
+        "original_labels": average_Y.tolist()
     }
     return JSONResponse(resp)
+
 
 @app.get('/verify')
 async def verify(device: str, predict: str, correct: str):
@@ -433,7 +439,7 @@ async def verify(device: str, predict: str, correct: str):
         # Write content to the file
         content = predict + " & " + correct + "\n"
         file.write(content)
-    
+
     return {"message": "verification result submitted."}
 # ========================================= Functions =========================================================
 
@@ -483,7 +489,8 @@ def get_all_raw_data(nodes):
     states_info = []
 
     for node in nodes:
-        avg_currents, max_currents, min_currents, times = get_power_data(node["id"])
+        avg_currents, max_currents, min_currents, times = get_power_data(
+            node["id"])
         emanation_data = get_emanation_data(node["id"])
         power_datas.append(avg_currents)
         emanation_datas.append(emanation_data)
@@ -578,7 +585,7 @@ def get_emanation_data(state_idx, wait=False):
     file_name = "/home/datasmith/Desktop/Iot-Auditor/IoT-Auditor/IoT-Auditor-hardware/fft_result/" + state_idx + ".pkl"
     while not os.path.exists(file_name):
         time.sleep(5)
-        
+
     emanation_result = []
     power_results = []
     with open(file_name, 'rb') as file:
@@ -725,6 +732,8 @@ def build_final_collage_node(node_collage_dict, final_distribution_dict, group_i
     return final_collage_dict, group_idx
 
 # ===========================================================================================================
+
+
 def data_processing(states, raw_power_data, raw_emanation_data):
     global data_points, emanation_sweep
     max_len = 11  # largest length of emanation vector
@@ -737,16 +746,17 @@ def data_processing(states, raw_power_data, raw_emanation_data):
         # state power data: average values of current => size: (1 * 200)
         # state emanation data: data from the .32cf file => size: (500, k)
         state_power_data = raw_power_data[state_idx]
-        state_emanation = raw_emanation_data[state_idx]
         i = 0
-        num = 20
+        num = 8
         power = []  # one iot state will have 10 examples which is averaged over 20 power data points
         while (i < 200):
             powers.append(state_power_data[i:i+num])
             state_labels.append(states[state_idx])  # the state of the data
             i = i+num
+
     # converting powers to be array
     powers_fea = np.array(powers)
+    state_labels = np.array(state_labels)
 
     # interpolating the emanations
     # 10 indicates that one iot state has 10 examples
@@ -764,7 +774,7 @@ def data_processing(states, raw_power_data, raw_emanation_data):
 
         # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
         # so we average over 50 emanation data points.
-        num_examples = int(emanation_sweep / 10)
+        num_examples = int(emanation_sweep / 25)
         j = 0
         while (j < emanation_sweep):
             emanations_fea[interp_index, :] = np.mean(
@@ -776,44 +786,9 @@ def data_processing(states, raw_power_data, raw_emanation_data):
     print("power: ", powers_fea.shape)
     print("emanation: ", emanations_fea.shape)
     conc_feas = np.hstack((powers_fea, emanations_fea))
-    data_points = conc_feas.tolist()  # store the features of data for model training
+
     embedded_feas = TSNE(n_components=2, learning_rate='auto',
                          init='random', perplexity=5).fit_transform(conc_feas)
-
-    return embedded_feas.tolist(), state_labels
-
-
-def predict_data_processing(power_data, emanation_data):
-    global emanation_sweep
-    powers = []  # one iot state will have 10 examples which is averaged over 20 power data points
-    i = 0
-    num = 20
-    while (i < 200):
-        powers.append(power_data[i:i+num])
-        i = i+num
-
-    powers_fea = np.array(powers)
-
-    max_len = 11  # largest length of emanation vector
-    emanations_fea = np.zeros((10, max_len))
-    interp_index = 0
-    emanation_interp = np.zeros((emanation_sweep, max_len))
-    for i in range(len(emanation_data)):
-        max_emanation = max(emanation_data[i])
-        min_emanation = min(emanation_data[i])
-        emanation_interp[i, :] = (
-            emanation_data[i]-min_emanation)/(max_emanation-min_emanation)
-
-    # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
-    # so we average over 50 emanation data points.
-    num_examples = int(emanation_sweep / 10)
-    j = 0
-    while (j < emanation_sweep):
-        emanations_fea[interp_index, :] = np.mean(
-            emanation_interp[j:j+num_examples, :], axis=0)
-        interp_index = interp_index + 1
-        j = j + num_examples
-
-    conc_feas = np.hstack((powers_fea, emanations_fea))
-    
-    return conc_feas.tolist()
+    feas_train, feas_test, labels_train, labels_test = train_test_split(
+        embedded_feas, state_labels, test_size=0.2, stratify=state_labels, random_state=42)
+    return feas_train, feas_test, labels_train, labels_test

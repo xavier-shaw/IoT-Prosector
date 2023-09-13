@@ -57,7 +57,11 @@ var BoardSchema = new Schema({
   },
   data: {
     type: Object,
-    default: { instructions: GOOGLE_HOME_INSTRUCTIONS },
+    default: { 
+      instructions: GOOGLE_HOME_INSTRUCTIONS,
+      stateSequence: [],
+      actionSequence: [] 
+    },
   },
   chart: {
     type: Object,
