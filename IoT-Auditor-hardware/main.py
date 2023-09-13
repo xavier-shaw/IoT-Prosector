@@ -63,6 +63,7 @@ min_currents = []
 times = []
 start_time = 0
 finish_write = True
+emanation_sweep = 250
 
 sample_num = 150
 group_cnt = 10
@@ -720,6 +721,7 @@ def build_final_collage_node(node_collage_dict, final_distribution_dict, group_i
 def data_processing(states, raw_power_data, raw_emanation_data):
     global data_points
     max_len = 11  # largest length of emanation vector
+
     # list with (number of states x  10), 10 means each state will have 10 data features
     powers = []
     state_labels = []
@@ -745,7 +747,7 @@ def data_processing(states, raw_power_data, raw_emanation_data):
     interp_index = 0
     for state_idx in range(len(states)):  # interpolating emanation vectors
         state_emanation = raw_emanation_data[state_idx]
-        emanation_interp = np.zeros((500, max_len))
+        emanation_interp = np.zeros((emanation_sweep, max_len))
         num = 0
         for i in range(len(state_emanation)):
             max_emanation = max(state_emanation[i])
@@ -755,9 +757,9 @@ def data_processing(states, raw_power_data, raw_emanation_data):
 
         # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
         # so we average over 50 emanation data points.
-        num_examples = 50
+        num_examples = int(emanation_sweep / 10)
         j = 0
-        while (j < 500):
+        while (j < emanation_sweep):
             emanations_fea[interp_index, :] = np.mean(
                 emanation_interp[j:j+num_examples, :], axis=0)
             interp_index = interp_index + 1
@@ -776,7 +778,6 @@ def data_processing(states, raw_power_data, raw_emanation_data):
 
 def predict_data_processing(power_data, emanation_data):
     powers = []  # one iot state will have 10 examples which is averaged over 20 power data points
-    
     i = 0
     num = 20
     while (i < 200):
@@ -788,7 +789,7 @@ def predict_data_processing(power_data, emanation_data):
     max_len = 11  # largest length of emanation vector
     emanations_fea = np.zeros((10, max_len))
     interp_index = 0
-    emanation_interp = np.zeros((500, max_len))
+    emanation_interp = np.zeros((emanation_sweep, max_len))
     for i in range(len(emanation_data)):
         max_emanation = max(emanation_data[i])
         min_emanation = min(emanation_data[i])
@@ -797,9 +798,9 @@ def predict_data_processing(power_data, emanation_data):
 
     # taking average for the interpolated emanations, since there are 10 power data examples, the emanation data examples should be 10.
     # so we average over 50 emanation data points.
-    num_examples = 50
+    num_examples = int(emanation_sweep / 10)
     j = 0
-    while (j < 500):
+    while (j < emanation_sweep):
         emanations_fea[interp_index, :] = np.mean(
             emanation_interp[j:j+num_examples, :], axis=0)
         interp_index = interp_index + 1

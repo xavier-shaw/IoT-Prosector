@@ -59,8 +59,8 @@ const VerificatopmPanel = forwardRef((props, ref) => {
         .get(window.HARDWARE_ADDRESS + "/verify", {
             params: {
                 device: board.title,
-                predict: predictState.data.label,
-                correct: predictState.data.label 
+                predict: predictState.data.representLabel,
+                correct: predictState.data.representLabel 
             }
         })
         .then((resp) => {
@@ -81,7 +81,8 @@ const VerificatopmPanel = forwardRef((props, ref) => {
         axios
         .get(window.HARDWARE_ADDRESS + "/verify", {
             params: {
-                predict: predictState.data.label,
+                device: board.title,
+                predict: predictState.data.representLabel,
                 correct: correctState 
             }
         })
@@ -118,7 +119,7 @@ const VerificatopmPanel = forwardRef((props, ref) => {
                                 return (
                                     <>
                                         <h4 style={{ fontFamily: "Times New Roman" }}>Your Action is: {action}</h4>
-                                        <h4 style={{ fontFamily: "Times New Roman" }}>Current Predicted State is: {predictState?.data?.label}</h4>
+                                        <h4 style={{ fontFamily: "Times New Roman" }}>Current Predicted State is: {predictState?.data?.representLabel}</h4>
                                         {readyForNextAction &&
                                             <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Please choose the next action.</h4>
                                         }
@@ -134,12 +135,16 @@ const VerificatopmPanel = forwardRef((props, ref) => {
                 </div>
 
                 <div>
-                    <Button variant={predicting ? "contained" : "outlined"} disabled={(status !== "state" && status !== "start")}
+                    <Button className="m-2" variant={predicting ? "contained" : "outlined"} disabled={(status !== "state" && status !== "start")}
                         sx={{ fontWeight: "bold", fontSize: 20, fontFamily: "Times New Roman" }} onClick={startStatePrediction} startIcon={<OnlinePredictionIcon />}>
                         {predicting? "Predicting" : "Start State Prediction"}
                     </Button>
+                    {predicting && 
+                    <div>
                     <p style={{fontFamily: "Times New Roman", fontSize: 20}}>It takes up to 30 seconds to finish the prediction.</p>
                     <LinearProgress/>
+                    </div>
+}
                 </div>
             </div>
 

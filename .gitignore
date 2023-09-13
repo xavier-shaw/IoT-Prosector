@@ -1,5 +1,6 @@
 node_modules
 IoT-Auditor-hardware/em_data
 IoT-Auditor-hardware/fft_result
+IoT-Auditor-hardware/verification_result
 IoT-Auditor-hardware/main.ipynb
 IoT-Auditor-hardware/__pycache__
