@@ -42,6 +42,7 @@ export default function Board(props) {
     const collagePanelRef = useRef(null);
     const interactionRecorderRef = useRef(null);
     const verificationPanelRef = useRef(null);
+    const [saved, setSaved] = useState(false);
 
     useEffect(() => {
         axios
@@ -67,6 +68,7 @@ export default function Board(props) {
 
     const handleClickNext = () => {
         if (step === 0) {
+            setSaved(false);
             setWaitForProcessing(true);
             let newChart = nodeChartRef.current.updateAnnotation();
             if (!board.data.processed) {
@@ -105,6 +107,7 @@ export default function Board(props) {
             }
         }
         else if (step === 1) {
+            setSaved(false);
             setStatus("start");
             setWaitForTraining(true);
             let newChart = nodeChartRef.current.updateAnnotation();
@@ -151,6 +154,7 @@ export default function Board(props) {
             .post(window.BACKEND_ADDRESS + "/boards/saveBoard", { boardId: board._id, updates: newBoard })
             .then((resp) => {
                 console.log("successfully update board", resp.data);
+                setSaved(true);
             });
     };
 
@@ -271,7 +275,7 @@ export default function Board(props) {
             <Helmet>
                 <title>{board.title}</title>
             </Helmet>
-            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} annotated={annotated}/>
+            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} saved={saved} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} annotated={annotated}/>
             <div className="main-board-div">
                 <div className="top-side-div">
                     <h6>You are now at the {stages[step]} Stage.</h6>

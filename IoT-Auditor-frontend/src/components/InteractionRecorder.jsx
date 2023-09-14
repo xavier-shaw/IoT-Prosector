@@ -206,10 +206,10 @@ const InteractionRecorder = forwardRef((props, ref) => {
                 <div className='operation-div'>
                     <div>
                         {status === "start" &&
-                            <h4 style={{ fontFamily: "Times New Roman" }}>Please start a new chain.</h4>
+                            <h4 style={{ fontFamily: "Times New Roman" }}>Please label the state you begin with.</h4>
                         }
-                        <Button variant="outlined" color='success' sx={{ fontWeight: "bold",  fontSize: 18, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
-                            Start a new chain
+                        <Button variant="outlined" color='success' disabled={status !== "start"} sx={{ fontWeight: "bold",  fontSize: 18, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
+                            begin with a new state
                         </Button>
                         {status !== "start" &&
                             <>
