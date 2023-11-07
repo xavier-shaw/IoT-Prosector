@@ -162,6 +162,8 @@ const InteractionRecorder = forwardRef((props, ref) => {
             setPrevIdx(newIdx);
             setRecording("");
             setOpenVideoDiaglog(false);
+            // let user annotate the state after the action
+            setOpenActionDialog(true);
         }
     };
 
@@ -181,7 +183,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
     const handleAddAction = () => {
         setState(inputState);
-        setStatus("action");
+        // setStatus("action");
         setInputState("");
         setOpenActionDialog(false);
     };
@@ -297,7 +299,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
             <Dialog open={openChainDialog}>
                 {/* let user label the state and show user the action
                     highlight the table row when its recording ?
-                    show the labeled state and action belowe the camera
+                    show the labeled state and action below the camera
                     a recording <=> stop recording "action"/"state" button
                     a start a new chain button => record base state 
                 */}

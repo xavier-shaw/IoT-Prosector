@@ -352,6 +352,7 @@ async def classfication(data: DataModel = Body(...)):
     clusters = [("Cluster " + str(i)) for i in range(cluster_cnt)]
     groups = [node["data"]["label"]
               for node in data.nodes if node["id"] in parent_node_ids]
+    print(corr_matrix)
     resp = {
         "matrix": corr_matrix.tolist(),
         "clusters": clusters,

@@ -152,7 +152,7 @@ const FlowChart = forwardRef((props, ref) => {
                 let predictStates = resp.data.predict_states;
                 let labels = resp.data.original_labels;
                 let predictInfoDict = {};
-                
+
                 predictStates = predictStates.map((id) => {
                     let state = nodes.find((n) => n.id === id);
                     return state;
@@ -794,6 +794,26 @@ const FlowChart = forwardRef((props, ref) => {
         }
     }
 
+    const onDisplayNodeClick = (evt, node) => {
+        const color = d3.scaleOrdinal()
+            .domain(nodes.map(d => d.id))
+            .range(colorPalette);
+
+        let newNodes = [...displayNodes];
+        newNodes = newNodes.map((n) => {
+            if (n.id !== node.id) {
+                n.style = { ...n.style, backgroundColor: "white" };
+            }
+            else {
+                n.style = { ...n.style, backgroundColor: color(n.id) };
+            };
+
+            return n;
+        });
+
+        setDisplayNodes(newNodes);
+    }
+
     return (
         <div style={{ width: '100%', height: '100%', backgroundColor: "white" }} ref={reactFlowWrapper}>
             {step === 0 &&
@@ -856,7 +876,8 @@ const FlowChart = forwardRef((props, ref) => {
                     nodes={displayNodes}
                     edges={displayEdges}
                     onInit={setReactFlowInstance}
-                    // onNodeClick={onDisplayNodeClick}
+                    onNodeClick={onDisplayNodeClick}
+                    onNodesChange={onDisplayNodesChange}
                     fitView
                 >
                     <Panel position="top-right">

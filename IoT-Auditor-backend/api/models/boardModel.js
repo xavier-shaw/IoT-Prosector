@@ -3,7 +3,7 @@ var Schema = mongoose.Schema;
 
 const GOOGLE_HOME_INSTRUCTIONS = [
   {
-    "function": "Turn off",
+    "function": "Turn on or off",
     "interaction": "Plug power cable",
     "image": "/plug.jpg"
   },

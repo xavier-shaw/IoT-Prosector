@@ -161,7 +161,8 @@ export default function Board(props) {
     const addAction = (action) => {
         if (step === 0) {
             interactionRecorderRef.current.setAction(action);
-            interactionRecorderRef.current.setOpenActionDialog(true);     
+            setStatus("action");
+            // interactionRecorderRef.current.setOpenActionDialog(true);     
         }
         else if (step === 2) {
             verificationPanelRef.current.setAction(action);
