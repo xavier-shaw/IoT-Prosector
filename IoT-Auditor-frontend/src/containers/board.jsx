@@ -25,6 +25,7 @@ export default function Board(props) {
     const stages = ["Interaction", "Collage", "Verification"];
     const [chart, setChart] = useState({});
     const [instructions, setInstructions] = useState([]);
+    const [curNode, setCurNode] = useState(null);
     const [prevNode, setPrevNode] = useState(null);
     const [chartSelection, setChartSelection] = useState(null);
     const [chainNum, setChainNum] = useState(0);
@@ -217,9 +218,9 @@ export default function Board(props) {
 
         // create edge from prev node
         if (status === "state") {
-            let newTransition = createEdge(edgeIdx, prevNode.id, nodeIdx, action);
+            let newTransition = createEdge(edgeIdx, curNode.id, nodeIdx, action);
             newChart.edges.push(newTransition);
-            position = { x: prevNode.position.x, y: prevNode.position.y + nodeOffsetY };
+            position = { x: curNode.position.x, y: curNode.position.y + nodeOffsetY };
         }
         else {
             // status = "base state" => base node
@@ -232,7 +233,8 @@ export default function Board(props) {
             type: "stateNode",
             position: position,
             positionAbsolute: position,
-            data: { label: idx + state, status: status, action: action, prev: prevNode ? prevNode.id : null },
+            // data: { label: idx + state, status: status, action: action, prev: prevNode ? prevNode.id : null },
+            data: { label: idx, status: status, action: action, prev: curNode ? curNode.id : null },
             style: stateNodeStyle,
             zIndex: stateZIndex
         };
@@ -240,7 +242,8 @@ export default function Board(props) {
         setStateSequence((prev) => ([...prev, nodeIdx]));
         setActionSequence((prev) => ([...prev, action]));
         newChart.nodes.push(newState);
-        setPrevNode(newState);
+        setCurNode(newState);
+        setPrevNode(curNode);
         setChart(newChart);
     };
 
@@ -312,7 +315,7 @@ export default function Board(props) {
                                         </div>
                                         <div className="action-div">
                                             <InteractionRecorder ref={interactionRecorderRef} board={board} chart={chart} createNode={createNode}
-                                                chainNum={chainNum} setChainNum={setChainNum} status={status} setStatus={setStatus} />
+                                                chainNum={chainNum} setChainNum={setChainNum} status={status} setStatus={setStatus} curNode={curNode} prevNode={prevNode}/>
                                         </div>
                                     </Grid>
                                 );

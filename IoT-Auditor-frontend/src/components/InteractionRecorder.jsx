@@ -11,7 +11,7 @@ import "./InteractionRecorder.css";
 import axios from 'axios';
 
 const InteractionRecorder = forwardRef((props, ref) => {
-    const { board, chart, createNode, chainNum, setChainNum, status, setStatus } = props;
+    const { board, chart, createNode, chainNum, setChainNum, status, setStatus, curNode, prevNode } = props;
     const webcamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const [camera, setCamera] = useState("");
@@ -52,6 +52,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
                         deviceId = device.id;
                     }
                 }
+                deviceId = videoDevices[0].deviceId;
                 if (videoDevices.length > 0) {
                     setCamera(deviceId);
                     console.log("Camera devices: ", videoDevices);
@@ -121,12 +122,12 @@ const InteractionRecorder = forwardRef((props, ref) => {
     const confirmRecording = () => {
         if (video.length) {
             const blob = new Blob(video, { type: 'video/webm' });
-            // store the data
+            
             const reader = new FileReader();
             reader.readAsDataURL(blob);
             reader.onloadend = function () {
                 const videoData = reader.result;
-                // Now, you can send `base64data` to your server
+                
                 let newVideo = {
                     device: board.title,
                     idx: newIdx,
@@ -162,8 +163,6 @@ const InteractionRecorder = forwardRef((props, ref) => {
             setPrevIdx(newIdx);
             setRecording("");
             setOpenVideoDiaglog(false);
-            // let user annotate the state after the action
-            setOpenActionDialog(true);
         }
     };
 
@@ -175,22 +174,13 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
     const handleAddBase = () => {
         setChainNum((prev) => (prev + 1));
-        setState(inputState);
         setStatus("base state");
-        setInputState("");
-        setOpenChainDialog(false);
     };
 
     const handleAddAction = () => {
         setState(inputState);
-        // setStatus("action");
         setInputState("");
         setOpenActionDialog(false);
-    };
-
-    const handleCloseChainDialog = () => {
-        setInputState("");
-        setOpenChainDialog(false);
     };
 
     const handleCloseActionDialog = () => {
@@ -207,44 +197,45 @@ const InteractionRecorder = forwardRef((props, ref) => {
             <Grid item xs={6} className='full-div'>
                 <div className='operation-div'>
                     <div>
-                        {status === "start" &&
+                        {/* {status === "start" &&
                             <h4 style={{ fontFamily: "Times New Roman" }}>Please label the state you begin with.</h4>
-                        }
-                        <Button variant="outlined" color='success' disabled={status !== "start"} sx={{ fontWeight: "bold",  fontSize: 18, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
+                        } */}
+                        <Button variant="outlined" color='success' disabled={status !== "start"} sx={{ fontWeight: "bold", fontSize: 18, fontFamily: "Times New Roman" }} onClick={() => handleAddBase()}>
                             begin with a new state
                         </Button>
                         {status !== "start" &&
                             <>
                                 <h4 style={{ fontFamily: "Times New Roman" }}>Chain: #{chainNum}</h4>
                                 {(() => {
+                                    console.log("here", chart.nodes);
                                     switch (status) {
                                         case "base state": // record a state
                                             return (
                                                 <>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {state}</h4>
+                                                    {/* <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {state}</h4> */}
                                                     <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Please start recording the state.</h4>
                                                 </>
                                             );
                                         case "state": // record a state
                                             return (
                                                 <>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {chart.nodes[chart.nodes.length - 1].data.label}</h4>
                                                     <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Please start recording state.</h4>
                                                 </>
                                             );
                                         case "choose action": // choose an action
                                             return (
                                                 <>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold"  }}>Please choose an action.</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {chart.nodes[chart.nodes.length - 1].data.label}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Please choose an action.</h4>
                                                 </>
                                             );
                                         case "action": // record an action
                                             return (
                                                 <>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {chart.nodes[chart.nodes.length - 1].data.label}</h4>
                                                     <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Action: {action}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman" }}>Next State: {state}</h4>
+                                                    {/* <h4 style={{ fontFamily: "Times New Roman" }}>Next State: {state}</h4> */}
                                                 </>
                                             );
                                         default:
@@ -296,13 +287,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
                 </div>
             </Grid>
 
-            <Dialog open={openChainDialog}>
-                {/* let user label the state and show user the action
-                    highlight the table row when its recording ?
-                    show the labeled state and action below the camera
-                    a recording <=> stop recording "action"/"state" button
-                    a start a new chain button => record base state 
-                */}
+            {/* <Dialog open={openChainDialog}>
                 <DialogTitle>New Action Chain</DialogTitle>
                 <DialogContent>
                     <div style={{ padding: "10px" }}>
@@ -313,14 +298,16 @@ const InteractionRecorder = forwardRef((props, ref) => {
                     <Button variant="outlined" color="error" onClick={handleCloseChainDialog}>Cancel</Button>
                     <Button variant="contained" color="primary" onClick={handleAddBase}>Submit</Button>
                 </DialogActions>
-            </Dialog>
+            </Dialog> */}
 
             <Dialog open={openActionDialog}>
-                <DialogTitle>Label the Next State</DialogTitle>
+                <DialogTitle>Annotate the State You Just Record</DialogTitle>
                 <DialogContent>
                     <div style={{ padding: "10px", display: 'flex', justifyContent: "space-between" }}>
-                        <h5 className='me-4'>{prevState}</h5>
-                        <Chip className="me-4" label={action} />
+                        {status !== "base state" &&
+                            <h5 className='me-4'>{prevState}</h5> &&
+                            <Chip className="me-4" label={action} />
+                        }
                         <TextField size="small" style={{ width: "150px" }} label="Next State" value={inputState} onChange={handleStateChange} />
                     </div>
                 </DialogContent>
@@ -332,9 +319,9 @@ const InteractionRecorder = forwardRef((props, ref) => {
 
             <Dialog open={openVideoDialog && video.length > 0}>
                 <DialogTitle>You've complete the {recording} recording.</DialogTitle>
-                {/* <DialogContent>Click "confirm" to confirm this interaction.</DialogContent> */}
+                {recording === "state" && <DialogContent>Please annotate the state you just record.</DialogContent>}
                 <DialogActions>
-                    <Button className='mt-2' variant="outlined" color="error" onClick={cancelRecording} startIcon={<CancelIcon />}>Cancel</Button>
+                    {/* <Button className='mt-2' variant="outlined" color="error" onClick={cancelRecording} startIcon={<CancelIcon />}>Cancel</Button> */}
                     <Button className='mt-2' variant="contained" color="success" onClick={confirmRecording} startIcon={<CheckIcon />}>Confirm</Button>
                 </DialogActions>
             </Dialog>
