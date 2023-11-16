@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 var express = require('express'),
     path = require('path'),
     app = express(),
@@ -8,7 +10,7 @@ var express = require('express'),
 
 // mongoose instance connection url connection
 mongoose.Promise = global.Promise;
-mongoose.connect("mongodb+srv://haojian:xwBVZV7fG8rjDKD@cluster0-f8w36.mongodb.net/iotdb", {
+mongoose.connect(`mongodb+srv://${process.env.NAME}:${process.env.PASSWORD}@${process.env.CLUSTER}/${process.env.DB_NAME}`, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })

@@ -4,3 +4,5 @@ IoT-Auditor-hardware/fft_result
 IoT-Auditor-hardware/verification_result
 IoT-Auditor-hardware/main.ipynb
 IoT-Auditor-hardware/__pycache__
+IoT-Auditor-hardware/.env
+IoT-Auditor-backend/.env
