@@ -1,3 +1,5 @@
+import serial.tools
+import serial.tools.list_ports
 from fastapi import FastAPI, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
@@ -54,6 +56,7 @@ pineapple_token = "eyJVc2VyIjoicm9vdCIsIkV4cGlyeSI6IjIwMjgtMDgtMjJUMDI6Mzc6NTUuM
 
 # ====================================== GLOBAL VARIABLES ==================================================
 ser = None
+connected_port = None
 quit = False
 listening = False
 power_data_thread = None
@@ -93,29 +96,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def read_from_arduino():
-    print("Start reading from Arduino...")
-    global ser
-    ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
-    global avg_currents, max_currents, min_currents, times, listening, quit
-    while not quit:
-        line = ser.readline()
-        if line and listening:
-            info = line.decode().rstrip()
-            infos = info.split(",")
-            max_current = float(infos[0])
-            avg_current = float(infos[1])
-            min_current = float(infos[2])
-            avg_currents.append(avg_current)
-            max_currents.append(max_current)
-            min_currents.append(min_current)
-            times.append(time.time() - start_time)
-
-
-power_data_thread = threading.Thread(target=read_from_arduino, daemon=True)
-power_data_thread.start()
 
 
 @app.on_event("startup")
@@ -168,7 +148,7 @@ async def remove(device: str):
 
 
 @app.get("/removeAllVideos")
-async def remove_all_data():
+async def remove_all_videos():
     app.database["actionvideos"].delete_many({})
     return {"message": "Delete all video."}
 
@@ -183,6 +163,59 @@ async def remove_all_data():
 async def remove_all_boards():
     app.database["boards"].delete_many({})
     return {"message": "delete all boards."}
+
+
+@app.get("/getAvailableSensingPorts")
+def get_available_sensing_ports():
+    ports = serial.tools.list_ports.comports()
+    available_ports = []
+    for port, desc, hwid in sorted(ports):
+        # print("{}: {} [{}]".format(port, desc, hwid))
+        available_ports.append(port)
+
+    resp = {
+        "available_ports": available_ports
+    }
+
+    return JSONResponse(resp)
+
+
+@app.get("/getConnectedPort")
+async def get_connected_port():
+    global connected_port
+    resp = {
+        "connected_port": connected_port
+    }
+
+    return JSONResponse(resp)
+
+
+@app.get("/connectPort")
+async def connect_port(port: str):
+    global connected_port
+    connected_port = port
+    power_data_thread = threading.Thread(target=read_from_arduino, daemon=True)
+    power_data_thread.start()
+    return {"message": "connect with port " + port}
+
+
+def read_from_arduino():
+    global ser, connected_port
+    print("Start reading from port ", connected_port)
+    ser = serial.Serial(connected_port, 9600, timeout=1)
+    global avg_currents, max_currents, min_currents, times, listening, quit
+    while not quit:
+        line = ser.readline()
+        if line and listening:
+            info = line.decode().rstrip()
+            infos = info.split(",")
+            max_current = float(infos[0])
+            avg_current = float(infos[1])
+            min_current = float(infos[2])
+            avg_currents.append(avg_current)
+            max_currents.append(max_current)
+            min_currents.append(min_current)
+            times.append(time.time() - start_time)
 
 
 @app.get("/startSensing")
@@ -404,7 +437,7 @@ async def train_model(data: DataModel = Body(...)):
 @app.get("/predict")
 async def predict():
     global classifier, state_group_dict, tsne_data_points_test, tsne_data_labels_test
-    
+
     # Combine X_test and y_test into a DataFrame
     df = pd.DataFrame(tsne_data_points_test, columns=["X1", "X2"])
     df["Label"] = tsne_data_labels_test
@@ -414,7 +447,7 @@ async def predict():
 
     # Convert the resulting DataFrame back to a NumPy array (if needed)
     average_X = averages.values
-    average_Y = averages.index 
+    average_Y = averages.index
 
     predict_results = classifier.predict(average_X)
 
