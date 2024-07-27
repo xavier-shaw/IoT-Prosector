@@ -3,18 +3,26 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { Link } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Popover, Radio, RadioGroup } from "@mui/material";
+import { Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, Popover, Radio, RadioGroup } from "@mui/material";
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import LinkIcon from '@mui/icons-material/Link';
+import WidgetsIcon from '@mui/icons-material/Widgets';
 import "./home.css"
 
 export default function Home(props) {
     const [boards, setBoards] = useState([]);
     const [availablePorts, setAvailablePorts] = useState([]);
     const [connectedPort, setConnectedPort] = useState(null);
-    const [openDialog, setOpenDialog] = useState(false);
+    const [selectedFunctions, setSelectedFunctions] = useState({
+        "recording": false, "visualization": false, "verification": false
+    })
+    const [openConnectionDialog, setOpenConnectionDialog] = useState(false);
+    const [openFunctionDialog, setOpenFunctionDialog] = useState(false);
     const [portSelection, setPortSelection] = useState(null);
+    const [functionSelections, setFunctionSelections] = useState({});
+
+    const functions = ["recording", "visualization", "verification"];
 
     useEffect(() => {
         // Side effect code goes here
@@ -39,11 +47,11 @@ export default function Home(props) {
 
     function getConnectedPort() {
         axios
-        .get(window.HARDWARE_ADDRESS + "/getConnectedPort")
-        .then((resp) => {
-            console.log(resp)
-            setConnectedPort(resp.data.connected_port)
-        })
+            .get(window.HARDWARE_ADDRESS + "/getConnectedPort")
+            .then((resp) => {
+                console.log(resp)
+                setConnectedPort(resp.data.connected_port)
+            })
     }
 
     function handleClickManageConnection() {
@@ -53,20 +61,36 @@ export default function Home(props) {
                 console.log("Available Ports", resp.data.available_ports);
                 setAvailablePorts(resp.data.available_ports);
                 setPortSelection(connectedPort);
-                setOpenDialog(true);
+                setOpenConnectionDialog(true);
             })
+    }
+
+    const handleClickManageFunctions = () => {
+        setFunctionSelections(selectedFunctions);
+        setOpenFunctionDialog(true);
     }
 
     const handlePortSelectionChange = (event) => {
         setPortSelection(event.target.value)
     }
 
-    const handleCloseDialog = () => {
-        setPortSelection(null);
-        setOpenDialog(false);
+    const handleFunctionSelectionChange = (func) => {
+        console.log(functionSelections);
+        console.log(func)
+        console.log(functionSelections[func])
+        setFunctionSelections(prev => ({ ...prev, [func]: !prev[func] }))
     }
 
-    const handleConfirmDialog = () => {
+    const handleCloseConnectionDialog = () => {
+        setPortSelection(null);
+        setOpenConnectionDialog(false);
+    }
+
+    const handleCloseFunctionDialog = () => {
+        setOpenFunctionDialog(false);
+    }
+
+    const handleConfirmConnectionDialog = () => {
         axios
             .get(window.HARDWARE_ADDRESS + "/connectPort/", {
                 params: {
@@ -76,8 +100,13 @@ export default function Home(props) {
             .then((resp) => {
                 console.log(resp);
                 setConnectedPort(portSelection);
-                handleCloseDialog();
+                handleCloseConnectionDialog();
             })
+    }
+
+    const handleConfirmFunctionDialog = () => {
+        setSelectedFunctions(functionSelections);
+        handleCloseFunctionDialog();
     }
 
     function createBoard() {
@@ -106,12 +135,16 @@ export default function Home(props) {
             <Typography variant="h6" gutterBottom>
                 (Connect with a sensing port to obtain sensing data)
             </Typography>
-            <Button variant={connectedPort? "contained": "outlined"} onClick={handleClickManageConnection} startIcon={<LinkIcon />}>
+
+            <Button variant={connectedPort ? "contained" : "outlined"} onClick={handleClickManageConnection} startIcon={<LinkIcon />}>
                 Manage Port Connection
+            </Button>
+            <Button className="ms-3" variant="outlined" color="secondary" onClick={handleClickManageFunctions} startIcon={<WidgetsIcon />}>
+                Manage Functions
             </Button>
 
             <Dialog
-                open={openDialog}
+                open={openConnectionDialog}
             >
                 <DialogTitle>
                     Manage Port Connection
@@ -127,8 +160,37 @@ export default function Home(props) {
                     </RadioGroup>
                 </DialogContent>
                 <DialogActions>
-                    <Button color="error" onClick={handleCloseDialog}>Cancel</Button>
-                    <Button onClick={handleConfirmDialog}>Confirm</Button>
+                    <Button color="error" onClick={handleCloseConnectionDialog}>Cancel</Button>
+                    <Button onClick={handleConfirmConnectionDialog}>Confirm</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={openFunctionDialog}
+            >
+                <DialogTitle>
+                    Manage Functions
+                </DialogTitle>
+                <DialogContent>
+                    <FormGroup>
+                        {functions.map(func => (
+                            <FormControlLabel
+                                key={func}
+                                control={
+                                    <Checkbox
+                                        checked={functionSelections[func]}
+                                        onChange={() => handleFunctionSelectionChange(func)}
+                                        inputProps={{ 'aria-label': 'controlled' }}
+                                    />
+                                }
+                                label={func}
+                            />
+                        ))}
+                    </FormGroup>
+                </DialogContent>
+                <DialogActions>
+                    <Button color="error" onClick={handleCloseFunctionDialog}>Cancel</Button>
+                    <Button onClick={handleConfirmFunctionDialog}>Confirm</Button>
                 </DialogActions>
             </Dialog>
             <div className="storyexamplecontainer">

@@ -6,3 +6,5 @@ IoT-Auditor-hardware/main.ipynb
 IoT-Auditor-hardware/__pycache__
 IoT-Auditor-hardware/.env
 IoT-Auditor-backend/.env
+__pycache__
+.env

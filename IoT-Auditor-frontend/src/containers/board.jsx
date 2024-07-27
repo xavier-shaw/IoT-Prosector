@@ -35,7 +35,7 @@ export default function Board(props) {
     const [waitForTraining, setWaitForTraining] = useState(false);
     const [finishProcess, setFinishProcess] = useState(false);
     const [predictStates, setPredictStates] = useState(null);
-    const [collageFinish, setCollageFinish] = useState(false);
+    const [collageFinish, setCollageFinish] = useState(false);  
     const [stateSequence, setStateSequence] = useState([]);
     const [actionSequence, setActionSequence] = useState([]);
     const nodeChartRef = useRef(null);
