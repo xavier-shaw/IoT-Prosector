@@ -11,7 +11,7 @@ import "./InteractionRecorder.css";
 import axios from 'axios';
 
 const InteractionRecorder = forwardRef((props, ref) => {
-    const { board, chart, createNode, chainNum, setChainNum, status, setStatus } = props;
+    const { board, chart, createNode, chainNum, setChainNum, status, setStatus, selectedFunctions } = props;
     const webcamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const [camera, setCamera] = useState("");
@@ -208,7 +208,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
                         {status === "start" &&
                             <h4 style={{ fontFamily: "Times New Roman" }}>Please label the state you begin with.</h4>
                         }
-                        <Button variant="outlined" color='success' disabled={status !== "start"} sx={{ fontWeight: "bold",  fontSize: 18, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
+                        <Button variant="outlined" color='success' disabled={status !== "start"} sx={{ fontWeight: "bold", fontSize: 18, fontFamily: "Times New Roman" }} onClick={() => setOpenChainDialog(true)}>
                             begin with a new state
                         </Button>
                         {status !== "start" &&
@@ -234,7 +234,7 @@ const InteractionRecorder = forwardRef((props, ref) => {
                                             return (
                                                 <>
                                                     <h4 style={{ fontFamily: "Times New Roman" }}>Current State: {prevState}</h4>
-                                                    <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold"  }}>Please choose an action.</h4>
+                                                    <h4 style={{ fontFamily: "Times New Roman", fontWeight: "bold" }}>Please choose an action.</h4>
                                                 </>
                                             );
                                         case "action": // record an action
@@ -282,17 +282,21 @@ const InteractionRecorder = forwardRef((props, ref) => {
                     </div>
                 </div>
             </Grid>
-            <Grid item xs={6} className='full-div'>
-                <div className='full-div'>
-                    <Webcam
-                        // imageSmoothing={true}
-                        audio={recording !== ""}
-                        ref={webcamRef}
-                        screenshotFormat="image/jpeg"
-                        videoConstraints={videoConstraints}
-                    />
-                </div>
-            </Grid>
+            {selectedFunctions["recording"]?
+                <Grid item xs={6} className='full-div'>
+                    <div className='full-div'>
+                        <Webcam
+                            // imageSmoothing={true}
+                            audio={recording !== ""}
+                            ref={webcamRef}
+                            screenshotFormat="image/jpeg"
+                            videoConstraints={videoConstraints}
+                        />
+                    </div>
+                </Grid>
+                :
+                <></>
+            }
 
             <Dialog open={openChainDialog}>
                 {/* let user label the state and show user the action

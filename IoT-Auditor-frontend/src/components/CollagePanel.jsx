@@ -8,7 +8,7 @@ import 'svg2pdf.js'
 import { jsPDF } from "jspdf";
 
 const CollagePanel = forwardRef((props, ref) => {
-    let { board, chart, chartSelection, showHints, hideHints } = props;
+    let { board, chart, chartSelection, showHints, hideHints, selectedFunctions } = props;
     const [selectedNode, setSelectedNode] = useState(null);
     const [selectedNodeVideo, setSelectedNodeVideo] = useState(null);
     const [prevNode, setPrevNode] = useState(null);
@@ -439,18 +439,24 @@ const CollagePanel = forwardRef((props, ref) => {
 
     return (
         <div className="collage-panel-div">
-            <div className="select-panel">
-                <Button size="small" variant={figure === "correlation matrix" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("correlation matrix")}>
-                    Correlation Matrix
-                </Button>
-                <Button size="small" variant={figure === "distribution" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("distribution")}>
-                    Distribution Scatterplot
-                </Button>
-                <Button size="small" variant="outlined" onClick={exportSVG}>Export SVG</Button>
-            </div>
-            <div id="graph-panel">
-                <Skeleton className="m-auto" variant="rectangular" animation="wave" width={graphWidth} height={graphHeight} />
-            </div>
+            {selectedFunctions["visualization"] ?
+                <div className="visualization-panel">
+                    <div className="select-panel">
+                        <Button size="small" variant={figure === "correlation matrix" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("correlation matrix")}>
+                            Correlation Matrix
+                        </Button>
+                        <Button size="small" variant={figure === "distribution" ? "contained" : "outlined"} color="primary" onClick={() => handleClickSelect("distribution")}>
+                            Distribution Scatterplot
+                        </Button>
+                        <Button className="ms-3" size="small" variant="outlined" color="info" onClick={exportSVG}>Export Visualization</Button>
+                    </div>
+                    <div id="graph-panel">
+                        <Skeleton className="m-auto" variant="rectangular" animation="wave" width={graphWidth} height={graphHeight} />
+                    </div>
+                </div>
+                :
+                <></>
+            }
 
             <Divider className="mt-2">
                 <h3 style={{ fontFamily: "Times New Roman", fontWeight: "bold", marginBottom: "0px" }}>State Information</h3>

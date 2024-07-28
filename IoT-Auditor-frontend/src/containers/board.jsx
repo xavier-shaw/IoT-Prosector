@@ -35,7 +35,7 @@ export default function Board(props) {
     const [waitForTraining, setWaitForTraining] = useState(false);
     const [finishProcess, setFinishProcess] = useState(false);
     const [predictStates, setPredictStates] = useState(null);
-    const [collageFinish, setCollageFinish] = useState(false);  
+    const [collageFinish, setCollageFinish] = useState(false);
     const [stateSequence, setStateSequence] = useState([]);
     const [actionSequence, setActionSequence] = useState([]);
     const nodeChartRef = useRef(null);
@@ -43,6 +43,11 @@ export default function Board(props) {
     const interactionRecorderRef = useRef(null);
     const verificationPanelRef = useRef(null);
     const [saved, setSaved] = useState(false);
+    const [selectedFunctions, setSelectedFunctions] = useState({});
+
+    useEffect(() => {
+        getSelectedFunctions();
+    }, []);
 
     useEffect(() => {
         axios
@@ -64,7 +69,16 @@ export default function Board(props) {
         if (chart.hasOwnProperty("nodes")) {
             setChainNum(chart.nodes.filter((n) => n.data.status === "base state").length);
         }
-    }, [chart])
+    }, [chart]);
+
+    function getSelectedFunctions() {
+        axios
+            .get(window.BACKEND_ADDRESS + "/functions")
+            .then(resp => {
+                console.log("selected functions", resp.data);
+                setSelectedFunctions(resp.data);
+            })
+    }
 
     const handleClickNext = () => {
         if (step === 0) {
@@ -81,7 +95,7 @@ export default function Board(props) {
                         newBoard.data = {
                             ...newBoard.data,
                             tsne_data_labels_train: resp.data.tsne_data_labels_train,
-                            tsne_data_points_train: resp.data.tsne_data_points_train, 
+                            tsne_data_points_train: resp.data.tsne_data_points_train,
                             tsne_data_labels_test: resp.data.tsne_data_labels_test,
                             tsne_data_points_test: resp.data.tsne_data_points_test,
                             state_cluster_dict: resp.data.state_cluster_dict,
@@ -95,15 +109,15 @@ export default function Board(props) {
             else {
                 axios.post(window.HARDWARE_ADDRESS + "/loadProcessedData", {
                     tsne_data_labels_train: board.data.tsne_data_labels_train,
-                    tsne_data_points_train: board.data.tsne_data_points_train, 
+                    tsne_data_points_train: board.data.tsne_data_points_train,
                     tsne_data_labels_test: board.data.tsne_data_labels_test,
                     tsne_data_points_test: board.data.tsne_data_points_test,
                     state_cluster_dict: board.data.state_cluster_dict,
                     cluster_cnt: board.data.cluster_cnt,
                 })
-                .then((resp) => {
-                    setFinishProcess(true);
-                })
+                    .then((resp) => {
+                        setFinishProcess(true);
+                    })
             }
         }
         else if (step === 1) {
@@ -115,10 +129,10 @@ export default function Board(props) {
                 device: board.title,
                 nodes: newChart.nodes
             })
-            .then(async (resp) => {
-                await nodeChartRef.current.predictState();
-                setFinishProcess(true);
-            })
+                .then(async (resp) => {
+                    await nodeChartRef.current.predictState();
+                    setFinishProcess(true);
+                })
         }
         else if (step === 2) {
             window.location.href = '/';
@@ -161,7 +175,7 @@ export default function Board(props) {
     const addAction = (action) => {
         if (step === 0) {
             interactionRecorderRef.current.setAction(action);
-            interactionRecorderRef.current.setOpenActionDialog(true);     
+            interactionRecorderRef.current.setOpenActionDialog(true);
         }
         else if (step === 2) {
             verificationPanelRef.current.setAction(action);
@@ -275,7 +289,7 @@ export default function Board(props) {
             <Helmet>
                 <title>{board.title}</title>
             </Helmet>
-            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} saved={saved} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} annotated={annotated}/>
+            <MenuBar title={board.title} onSave={onSave} onTitleChange={handleTitleFocusOut} saved={saved} step={step} handleClickBack={handleClickBack} handleClickNext={handleClickNext} annotated={annotated} />
             <div className="main-board-div">
                 <div className="top-side-div">
                     <h6>You are now at the {stages[step]} Stage.</h6>
@@ -284,8 +298,8 @@ export default function Board(props) {
                             <Button className="me-2" size="small" color="primary" variant="contained" disabled={collageFinish} onClick={startCollage}>Collage</Button>
                             <h6>by our algorithm first, then collage by yourself, and </h6>
                             <Button className="ms-2 me-2" size="small" color="primary" variant="contained" onClick={previewFinalChart}>
-                                {annotated === 1? "Close Preview" : "Preview & Annotate" }
-                                </Button>
+                                {annotated === 1 ? "Close Preview" : "Preview & Annotate"}
+                            </Button>
                             <h6>the final state diagram.</h6>
                         </>
                     }
@@ -299,7 +313,7 @@ export default function Board(props) {
                 <Grid container columnSpacing={2} className="bottom-side-div">
                     <Grid item xs={7} className="panel-div">
                         <NodeChart board={board} chart={chart} setChart={setChart} ref={nodeChartRef} step={step} setAnnotated={setAnnotated}
-                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictStates={setPredictStates}/>
+                            chartSelection={chartSelection} setChartSelection={setChartSelection} updateMatrix={updateMatrix} setPredictStates={setPredictStates} />
                     </Grid>
                     {(() => {
                         switch (step) {
@@ -311,7 +325,7 @@ export default function Board(props) {
                                         </div>
                                         <div className="action-div">
                                             <InteractionRecorder ref={interactionRecorderRef} board={board} chart={chart} createNode={createNode}
-                                                chainNum={chainNum} setChainNum={setChainNum} status={status} setStatus={setStatus} />
+                                                chainNum={chainNum} setChainNum={setChainNum} status={status} setStatus={setStatus} selectedFunctions={selectedFunctions} />
                                         </div>
                                     </Grid>
                                 );
@@ -319,14 +333,18 @@ export default function Board(props) {
                                 return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
                                         <CollagePanel ref={collagePanelRef} board={board} chart={chart} chartSelection={chartSelection}
-                                            showHints={showHints} hideHints={hideHints} />
+                                            showHints={showHints} hideHints={hideHints} selectedFunctions={selectedFunctions} />
                                     </Grid>
                                 );
                             case 2:
                                 return (
                                     <Grid item xs={5} className="panel-div" zeroMinWidth>
-                                            <VerificatopmPanel ref={verificationPanelRef} board={board} chart={chart} status={status} setStatus={setStatus} 
-                                                predictStates={predictStates} stateSequence={stateSequence} actionSequence={actionSequence}/>
+                                        {selectedFunctions["verification"] ?
+                                            <VerificatopmPanel ref={verificationPanelRef} board={board} chart={chart} status={status} setStatus={setStatus}
+                                                predictStates={predictStates} stateSequence={stateSequence} actionSequence={actionSequence} />
+                                            :
+                                            <></>
+                                        }
                                     </Grid>
                                 )
                             default:

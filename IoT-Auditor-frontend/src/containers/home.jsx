@@ -29,6 +29,7 @@ export default function Home(props) {
         // It will run after the component renders
         getBoards();
         getConnectedPort();
+        getSelectedFunctions();
         // Optional cleanup function
         return () => {
             // Cleanup code goes here
@@ -49,8 +50,17 @@ export default function Home(props) {
         axios
             .get(window.HARDWARE_ADDRESS + "/getConnectedPort")
             .then((resp) => {
-                console.log(resp)
-                setConnectedPort(resp.data.connected_port)
+                console.log("connected port", resp.data);
+                setConnectedPort(resp.data.connected_port);
+            })
+    }
+
+    function getSelectedFunctions() {
+        axios
+            .get(window.BACKEND_ADDRESS + "/functions")
+            .then(resp => {
+                console.log("selected functions", resp.data);
+                setSelectedFunctions(resp.data);
             })
     }
 
@@ -75,9 +85,6 @@ export default function Home(props) {
     }
 
     const handleFunctionSelectionChange = (func) => {
-        console.log(functionSelections);
-        console.log(func)
-        console.log(functionSelections[func])
         setFunctionSelections(prev => ({ ...prev, [func]: !prev[func] }))
     }
 
@@ -105,8 +112,15 @@ export default function Home(props) {
     }
 
     const handleConfirmFunctionDialog = () => {
-        setSelectedFunctions(functionSelections);
-        handleCloseFunctionDialog();
+        axios
+            .post(window.BACKEND_ADDRESS + "/functions", functionSelections)
+            .then(resp => {
+                setSelectedFunctions(functionSelections);
+                handleCloseFunctionDialog();
+            })
+            .catch(err => {
+                console.log("failed with error: ", err);
+            })
     }
 
     function createBoard() {

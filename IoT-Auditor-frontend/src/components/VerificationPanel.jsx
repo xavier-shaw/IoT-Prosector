@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { colorPalette } from "../shared/chartStyle";
 
 const VerificatopmPanel = forwardRef((props, ref) => {
-    const { board, chart, status, setStatus, stateSequence, actionSequence, predictStates } = props;
+    const { board, chart, status, setStatus, stateSequence, actionSequence, predictStates} = props;
     const [action, setAction] = useState("None");
     const [previousState, setPreviousState] = useState("");
     const [prediction, setPrediction] = useState(null);

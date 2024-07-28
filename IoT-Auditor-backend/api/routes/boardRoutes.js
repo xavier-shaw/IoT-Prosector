@@ -1,6 +1,10 @@
 module.exports = function (app) {
     var board = require('../controllers/boardController');
 
+    app.route('/api/functions')
+        .get(board.get_selected_functions)
+        .post(board.update_selected_functions);
+
     app.route('/api/board')
         .post(board.create_board);
 

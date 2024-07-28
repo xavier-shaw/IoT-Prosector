@@ -1,4 +1,16 @@
 var Board = require('../models/boardModel');
+var selectedFunctions = {
+    "recording": false, "visualization": false, "verification": false
+}
+
+exports.get_selected_functions = function (req, res) {
+    res.json(selectedFunctions)
+};
+
+exports.update_selected_functions = function (req, res) {
+    selectedFunctions = req.body;
+    res.json(selectedFunctions);
+};
 
 exports.create_board = function (req, res) {
     var new_board = new Board(req.body);
