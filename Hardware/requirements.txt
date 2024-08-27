@@ -1,0 +1,15 @@
+# generate by "pipreqs --print"
+certifi==2024.2.2
+fastapi==0.112.2
+matplotlib==3.9.2
+numpy==2.1.0
+pandas==2.2.2
+paramiko==3.4.1
+psutil==5.9.8
+pydantic==2.8.2
+pymongo==4.8.0
+pyserial==3.5
+python-dotenv==1.0.1
+scikit_learn==1.5.1
+scipy==1.14.1
+seaborn==0.13.2

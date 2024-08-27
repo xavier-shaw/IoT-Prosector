@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently \"cd IoT-Auditor-backend && npm start\" \"cd IoT-Auditor-frontend && npm run dev\" \"cd IoT-Auditor-hardware && uvicorn main:app --workers 9 --reload\"",
-    "start local": "concurrently \"cd IoT-Auditor-backend && npm start\" \"cd IoT-Auditor-frontend && npm run dev\" \"cd IoT-Auditor-hardware && uvicorn main:app --reload\" ",
+    "start": "concurrently \"cd Backend && npm start\" \"cd Frontend && npm run dev\" \"cd Hardware && uvicorn main:app --workers 9 --reload\"",
+    "start local": "concurrently \"cd Backend && npm start\" \"cd Frontend && npm run dev\" \"cd Hardware && uvicorn main:app --reload\" ",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
