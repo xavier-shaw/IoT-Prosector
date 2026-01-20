@@ -1,6 +1,9 @@
 # Walkthrough
 
-This guide walks you through how to use IoT-Prosector to create mental models of IoT devices.
+This guide walks you through how to use IoT-Prosector to create mental models of IoT devices. 
+
+You can also watch a quick demo video here: https://drive.google.com/file/d/11PI1Mzo8_sQ1wGWKhMIwUCWfK3JaIUJN/view?usp=sharing.
+
 
 ## Table of Contents
 
@@ -14,7 +17,6 @@ This guide walks you through how to use IoT-Prosector to create mental models of
 ---
 
 ## Getting Started
-
 
 Open http://localhost:5173 in your browser.
 
