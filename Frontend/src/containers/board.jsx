@@ -8,7 +8,6 @@ import { useEffect } from "react";
 import { cloneDeep } from 'lodash';
 import { useParams } from "react-router-dom";
 import NodeChart from "../components/NodeChart";
-import TimelineChart from "../components/TimelineChart";
 import { Button, Grid, Typography, Dialog, DialogActions, DialogTitle, DialogContent, LinearProgress, } from "@mui/material";
 import CheckIcon from '@mui/icons-material/Check';
 import InstructionTable from "../components/InstructionTable";

@@ -15,7 +15,7 @@ export default function Home(props) {
     const [availablePorts, setAvailablePorts] = useState([]);
     const [connectedPort, setConnectedPort] = useState(null);
     const [selectedFunctions, setSelectedFunctions] = useState({
-        "recording": false, "visualization": false, "verification": false
+        "recording": true, "visualization": true, "verification": true
     })
     const [openConnectionDialog, setOpenConnectionDialog] = useState(false);
     const [openFunctionDialog, setOpenFunctionDialog] = useState(false);
