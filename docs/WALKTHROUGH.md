@@ -58,6 +58,8 @@ The Interaction stage is where you record device states and the actions that tri
 
 ### Recording Workflow
 
+![IoT-Prosector Recod UI](/docs/figures/IoT%20Record%20UI.png)
+
 #### Step 1: Record Base State
 
 Every analysis chain starts with a **base state** (the device's initial/stable state).
@@ -124,7 +126,7 @@ When you've recorded sufficient states:
 
 ---
 
-## Stage 2: Data Processing
+## Stage 2: Modeling
 
 When you click **"Next"** after the Interaction stage, the system processes all collected sensor data. This happens automatically in the Hardware API (Python/FastAPI backend).
 
@@ -191,6 +193,8 @@ The system automatically discovers natural groupings in the data:
 ---
 
 ## Stage 3: Collage
+
+![IoT-Prosector Collage UI](/docs/figures/IoT%20Collage%20UI.jpg)
 
 The Collage stage allows you to group similar states to build a clear state machine or mental model of the IoT device.
 

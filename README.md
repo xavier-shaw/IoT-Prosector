@@ -2,6 +2,10 @@
 
 IoT-Prosector is an interactive system designed to help users form mental models of black-box IoT devices. It consists of two key components: (i) a multi-modal sensing technique that combines power consumption, network traffic, and radio emanations; (ii) an annotation interface with interactive visualizations, enabling users to construct and refine these mental models as finite state machines.
 
+
+![IoT-Prosector Teaser Figure](/docs/figures/IoT%20Setup.jpg)
+
+
 ### Installation
 
 First clone this repository:
@@ -17,11 +21,13 @@ IoT-Prosector contains a python backend for hardware connection, a express.js ba
 
 To run IoT-Prosector, you could simply use the command: `npm start` at the root of this directory.
 
-Behind the scene, this command setup the Frontend (http://localhost:5173/), the Data backend (http://localhost:9990/), and Hardware backend (http://localhost:8000/) simultanously.
+Behind the scene, this command setup the Frontend (`http://localhost:5173/`), the Data backend (`http://localhost:9990/`), and Hardware backend (`http://localhost:8000/`) simultanously.
 
 ## How to Use
 
-IoT-Prosector guides you through a **three-stage workflow** to build a mental model of your IoT device:
+![IoT-Prosector Workflow](/docs/figures/IoT%20Workflow.jpg)
+
+IoT-Prosector guides you through a **four-stage workflow** to build a mental model of your IoT device:
 
 ### Stage 1: Interaction — *Record device behaviors*
 
@@ -31,14 +37,23 @@ IoT-Prosector guides you through a **three-stage workflow** to build a mental mo
 4. **Record transitions**: Select an action → Click "Start Action Recording" → Perform the action on the device
 5. **Repeat** to capture all device states and transitions
 
-### Stage 2: Collage — *Build the Mental Model (or State Machine) of the device*
+### Stage 2: Modeling — *Process sensor data*
+
+When you click **"Next"**, the system automatically:
+1. **Extracts features** from power readings and RF emanation data
+2. **Reduces dimensions** using t-SNE to project data into the 2D space
+3. **Clusters data** using K-Means to find natural groupings in sensor patterns
+
+This processing takes ~30 seconds and prepares the data for the Collage stage.
+
+### Stage 3: Collage — *Build the Mental Model (or State Machine) of the device*
 
 1. Click **"Next"** to trigger ML processing (clustering + dimensionality reduction)
 2. Review the **correlation matrix** showing how sensor patterns map to your labeled states
 3. **Drag and drop** states on the FSM canvas to group ones that behave similarly
 4. Use the **scatterplot** to visualize sensor data distribution
 
-### Stage 3: Verification — *Test your model*
+### Stage 4: Verification — *Test your model*
 
 1. Click **"Next"** to train a classifier on your grouped states
 2. **Interact** with the device in real-time
