@@ -1,5 +1,7 @@
 # IoT-Prosector: Reasoning about the Internal States of Blackbox IoT Devices Using Side-Channel Information
 
+[📖 See the arXiv paper of IoT-Prosector.](https://arxiv.org/abs/2311.13761)
+
 IoT-Prosector is an interactive system designed to help users form mental models of black-box IoT devices. It consists of two key components: (i) a multi-modal sensing technique that combines power consumption, network traffic, and radio emanations; (ii) an annotation interface with interactive visualizations, enabling users to construct and refine these mental models as finite state machines.
 
 
