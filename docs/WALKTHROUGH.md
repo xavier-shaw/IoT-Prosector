@@ -194,7 +194,7 @@ The system automatically discovers natural groupings in the data:
 
 ## Stage 3: Collage
 
-![IoT-Prosector Collage UI](/docs/figures/IoT%20Collage%20UI.jpg)
+![IoT-Prosector Collage UI](/docs/figures/IoT%20Collage%20UI.png)
 
 The Collage stage allows you to group similar states to build a clear state machine or mental model of the IoT device.
 
@@ -212,22 +212,29 @@ If you do not want to use auto-clustering, you can manually cluster the nodes:
 2. They merge into a **semantic group** (larger container node)
 3. The group represents states that you consider functionally equivalent
 
-### Using Visualizations
+You can toggle between visualizations to guide your grouping decisions.
 
-Toggle between visualizations to guide your grouping decisions:
-
-#### Correlation Matrix
+### Visualization - Correlation Matrix
 Shows the relationship between:
 - **Rows**: Clusters from K-Means (Sensing Model)
 - **Columns**: Your annotated groups (Mental Model)
 
-Higher values (darker colors) indicate stronger correlation.
+**Interpretation:**
+- Values range from 0 to 1
+- Higher values (darker colors) indicate stronger correlation.
+- High diagonal values = good alignment between sensing and mental models
+- Off-diagonal values = potential confusion between states
 
-#### Distribution Scatterplot
+### Visualization - Distribution Scatterplot
 Shows t-SNE embeddings of sensor data:
 - Each point is a data sample
 - Colors represent states/groups
+
+**Interpretation:**
 - Closer points = similar sensor signatures
+- Clusters that are far apart are easily distinguishable
+- Overlapping clusters may indicate states that are hard to differentiate
+- Outliers may indicate recording errors or transitional states
 
 Click on a state in the FSM panel to highlight its points.
 
@@ -235,11 +242,7 @@ Click on a state in the FSM panel to highlight its points.
 
 Click **"Preview & Annotate"** to see how the grouped FSM will look.
 
-### Moving to Verification Stage
-
-1. Click **"Next"** in the menu bar
-2. Wait for model training (up to 30 seconds)
-3. The system trains a decision tree classifier
+![IoT-Prosector Collage Interactions](/docs/figures/IoT%20Collage%20Interactions.jpg)
 
 ---
 
@@ -266,24 +269,6 @@ The Verification stage tests whether the model can correctly predict device stat
 ### Finishing
 
 Click **"Next"** to return to the home page with your completed analysis.
-
----
-
-## Understanding Visualizations
-
-### Correlation Matrix
-
-**Interpretation:**
-- Values range from 0 to 1
-- High diagonal values = good alignment between sensing and mental models
-- Off-diagonal values = potential confusion between states
-
-### t-SNE Scatterplot
-
-**Interpretation:**
-- Clusters that are far apart are easily distinguishable
-- Overlapping clusters may indicate states that are hard to differentiate
-- Outliers may indicate recording errors or transitional states
 
 ---
 

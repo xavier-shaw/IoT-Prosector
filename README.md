@@ -5,6 +5,16 @@ IoT-Prosector is an interactive system designed to help users form mental models
 
 ![IoT-Prosector Teaser Figure](/docs/figures/IoT%20Setup.jpg)
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](/docs/ARCHITECTURE.md) | System design and component overview |
+| [API Reference](/docs/API_REFERENCE.md) | Backend and Hardware API endpoints |
+| [Installation](/docs/INSTALLATION.md) | Setup and configuration guide |
+| [Walkthrough](/docs/WALKTHROUGH.md) | Detailed usage instructions |
+
+## Quick Start
 
 ### Installation
 
@@ -17,7 +27,7 @@ Then refer to [Installation Guide](/docs/INSTALLATION.md) for detailed guidance 
 
 ### Running
 
-IoT-Prosector contains a python backend for hardware connection, a express.js backend for data management, and a react frontend for GUI.
+IoT-Prosector contains a python backend for hardware connection, a express.js backend for data management, and a react frontend for GUI. You can refer to [Architecture](/docs/ARCHITECTURE.md) to see details of the system design. 
 
 To run IoT-Prosector, you could simply use the command: `npm start` at the root of this directory.
 

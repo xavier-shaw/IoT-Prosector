@@ -39,6 +39,8 @@ IoT-Prosector is an interactive system designed to help users form mental models
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
+You can go to [API Reference](/docs/API_REFERENCE.md) to see every API end points of each part of the system.
+
 ---
 
 ## Component Details
